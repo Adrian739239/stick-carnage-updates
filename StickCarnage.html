@@ -24,7 +24,7 @@ canvas{display:block;outline:none;touch-action:none;user-select:none;-webkit-use
 
 </script>
 <script>
-const GAME_VERSION = '3.4.0', GAME_BUILD = 1793615481;
+const GAME_VERSION = '3.5.0', GAME_BUILD = 1793615886;
 'use strict';
 /* =========================================================
    STICK CARNAGE 2
@@ -1448,6 +1448,7 @@ function stepMove(f, dt, I, real) {
   const reversing = mx && f.vx * mx < -1;
   let accel = gr ? (mx ? reversing ? MOVE.turn : MOVE.accel : MOVE.brake) : (mx ? reversing ? MOVE.airTurn : MOVE.airAccel : MOVE.airBrake);
   if (ice) accel = mx ? 1100 : 650;
+  if (gr && f.body && f.body.contact === 0 && !f.crawl) accel *= .2; // Ohne Fuß am Boden kein Schub
   else if (gr && anyJ(f, 'foot')) accel *= .75;
   if (!gr && f.wjT > 0) accel = Math.min(accel, 900);
   f.vx = approach(f.vx, mx * spd, accel * dt);
@@ -1623,6 +1624,36 @@ function stumpPos(f, l) { const p = f.pose; return l.startsWith('arm') ? { x: p.
 const BODY_KEYS = ['hip', 'spine', 'neck', 'head', 'kneeL', 'kneeR', 'footL', 'footR', 'elbowL', 'elbowR', 'handL', 'handR'];
 const BODY_BONES = [['hip', 'spine'], ['spine', 'neck'], ['neck', 'head'], ['hip', 'kneeL'], ['kneeL', 'footL'], ['hip', 'kneeR'], ['kneeR', 'footR'], ['neck', 'elbowL'], ['elbowL', 'handL'], ['neck', 'elbowR'], ['elbowR', 'handR']];
 const BODY_MUSCLE = { hip: .14, spine: .05, neck: .09, head: .13, knee: .09, foot: .05, elbow: .05, hand: .025 };
+// 52 weitere Punkte: Jeder Knochen ist eine biegsame Kette. Zusammen mit den 12 Hauptpunkten sind das 64.
+const BODY_CHAINS = { 'hip|spine': 5, 'spine|neck': 5, 'neck|head': 6, 'hip|kneeL': 5, 'kneeL|footL': 5, 'hip|kneeR': 5, 'kneeR|footR': 5, 'neck|elbowL': 4, 'elbowL|handL': 4, 'neck|elbowR': 4, 'elbowR|handR': 4 };
+function groundTopAt(x, y) { let t = y; for (const s of solids) { if (s.invisible || s.prop || x < s.px || x > s.px + s.w) continue; if (s.py >= y - 34 && s.py <= y + 34 && (t === y || s.py < t)) t = s.py; } return t; }
+// Die Füße laufen selbst: Ein Fuß steht fest, bis er zu weit hinten ist, dann setzt er nach vorn um. Nur ein stehender Fuß gibt Schub.
+function stepFeet(f, B, p, T, d, onG, fd) {
+  const F = B.feet || (B.feet = { L: { x: f.x - 7, y: f.y, on: true }, R: { x: f.x + 7, y: f.y, on: true } }), ground = onG && !f.sliding && f.stun <= KNOCKED; let contact = 0;
+  const v = f.vx + f.kx, sp = Math.abs(v), dir = Math.sign(v) || d, hx = T.hip.x, c = hx + v * .1, reach = f.duck ? 8 : 8 + sp * .04, g = f.ground, sides = ['L', 'R'].filter(s => T['foot' + s]);
+  for (const s of sides) {
+    const q = F[s]; if (!ground) { q.on = false; q.sw = false; q.air = true; continue; }
+    if (q.air) { q.air = false; q.on = true; q.x = T['foot' + s].x; q.y = f.y; }
+    if (q.sw) { q.t += fd / q.dur; const e = Math.min(1, q.t), k = e * e * (3 - 2 * e); q.x = lerp(q.sx, q.tx, k) + (g && g.dx || 0); q.y = lerp(q.sy, q.ty, k) - q.lift * Math.sin(Math.PI * e); if (e >= 1) { q.sw = false; q.on = true; q.y = q.ty; } }
+    else { if (g && g.dx) { q.x += g.dx; q.y += g.dy; } if (Math.abs(q.x - f.x) > 60 || Math.abs(q.y - f.y) > 40) { q.x = f.x; q.y = f.y; } contact++; }
+  }
+  if (ground && !sides.some(s => F[s].sw) && sides.length) {
+    const far = sides.slice().sort((a, b) => Math.abs(F[b].x - c) - Math.abs(F[a].x - c))[0], q = F[far], off = q.x - c, other = F[far === 'L' ? 'R' : 'L'], close = sides.length > 1 && sp < 30 && Math.abs(q.x - other.x) < 9;
+    if (Math.abs(off) > reach || close) { const tx = close ? hx + (q.x < other.x ? -8 : 8) : c + dir * reach * .75; q.sw = true; q.on = false; q.t = 0; q.sx = q.x; q.sy = q.y; q.tx = tx; q.ty = groundTopAt(tx, f.y); q.dur = clamp(.2 - sp * .00028, .1, .2); q.lift = (f.duck ? 2 : 6) + sp * .012; contact = Math.max(0, contact - 1); }
+  }
+  B.contact = !ground ? 0 : contact; if (ground) for (const s of sides) { const q = F[s]; T['foot' + s] = { x: q.x, y: q.y }; T['knee' + s] = legKnee(f, p, q.x, q.y, d); }
+  return ground ? sides.filter(s => !F[s].sw) : [];
+}
+function stepChains(B, N) {
+  B.ch = B.ch || {}; for (const key in BODY_CHAINS) {
+    const [ak, bk] = key.split('|'), a = N[ak], b = N[bk], n = BODY_CHAINS[key]; if (!a || !b) { delete B.ch[key]; continue; }
+    let C = B.ch[key]; if (!C) { C = B.ch[key] = []; for (let i = 1; i <= n; i++) { const k = i / (n + 1), x = lerp(a.x, b.x, k), y = lerp(a.y, b.y, k); C.push({ x, y, ox: x, oy: y }); } }
+    const l = dist(a.x, a.y, b.x, b.y) / (n + 1) * 1.02;
+    C.forEach((q, i) => { const k = (i + 1) / (n + 1), vx = (q.x - q.ox) * .94, vy = (q.y - q.oy) * .94 + .05; q.ox = q.x; q.oy = q.y; q.x += vx; q.y += vy; q.x += (lerp(a.x, b.x, k) - q.x) * .3; q.y += (lerp(a.y, b.y, k) - q.y) * .3; });
+    for (let it = 0; it < 2; it++) { let prev = a; for (let i = 0; i <= n; i++) { const q = i < n ? C[i] : b, dx = q.x - prev.x, dy = q.y - prev.y, c = Math.hypot(dx, dy) || .01, e = (c - l) / c; if (i < n) { q.x -= dx * e * (i ? .5 : 1); q.y -= dy * e * (i ? .5 : 1); if (i) { prev.x += dx * e * .5; prev.y += dy * e * .5; } } else if (n) { prev.x += dx * e; prev.y += dy * e; } prev = q; } }
+  }
+}
+const bodyPoints = f => { const B = f.body; if (!B) return 0; let n = Object.keys(B.n).length; for (const k in B.ch || {}) n += B.ch[k].length; return n; };
 const muscleOf = k => BODY_MUSCLE[k.replace(/[LR]$/, '')];
 function nodeHit(n, f) {
   for (const s of solids) {
@@ -1637,12 +1668,14 @@ function bodySim(f, p, fd, onG, d, off, holdOff) {
   let steps = clamp(Math.round((G.time - B.t) * 120), 0, 3); if (G.time < B.t) steps = 1; if (steps) B.t = G.time; const pinned = !down && T['hand' + main], neck0 = T.neck, handT = T['hand' + main];
   const bones = BODY_BONES.filter(b => T[b[0]] && T[b[1]]).map(b => [N[b[0]], N[b[1]], dist(T[b[0]].x, T[b[0]].y, T[b[1]].x, T[b[1]].y)]);
   const keep = holdOff && !down && T['hand' + off];
+  const standing = steps ? stepFeet(f, B, p, T, d, onG, steps / 120) : [];
   for (let st = 0; st < steps; st++) {
     B.str += (goal - B.str) * (goal < B.str ? .25 : .035); const m = B.str;
     for (const k in N) {
       const n = N[k], q = T[k], vx = (n.x - n.ox) * .97, vy = (n.y - n.oy) * .97 + g; n.ox = n.x; n.oy = n.y; n.x += vx; n.y += vy;
       const plant = (k === 'footL' || k === 'footR') && onG && !f.sliding && q.y >= f.y - 1, s = (plant ? .5 : muscleOf(k)) * m; n.x += (q.x - n.x) * s; n.y += (q.y - n.y) * s;
     }
+    for (const c of standing) { const n = N['foot' + c]; if (n) { n.x = n.ox = T['foot' + c].x; n.y = n.oy = T['foot' + c].y; } }
     if (pinned) { const h = N['hand' + main]; h.x = handT.x + N.neck.x - neck0.x; h.y = handT.y + N.neck.y - neck0.y; } if (keep) { const h = N['hand' + off]; h.x = T['hand' + off].x + N.neck.x - neck0.x; h.y = T['hand' + off].y + N.neck.y - neck0.y; }
     for (let it = 0; it < 4; it++) for (const [a, b, l] of bones) { const dx = b.x - a.x, dy = b.y - a.y, c = Math.hypot(dx, dy) || .01, e = (c - l) / c * .5; a.x += dx * e; a.y += dy * e; b.x -= dx * e; b.y -= dy * e; }
     if (down) N.neck.x += (f.impactDir || d) * .5; const lim = down ? 60 : 5 + 22 * (1 - m), h = N.hip, hx = h.x - T.hip.x, hy = h.y - T.hip.y, hl = Math.hypot(hx, hy); if (hl > lim) { h.x = T.hip.x + hx / hl * lim; h.y = T.hip.y + hy / hl * lim; }
@@ -1650,6 +1683,7 @@ function bodySim(f, p, fd, onG, d, off, holdOff) {
     for (const [a, b, l] of bones) { const c = dist(a.x, a.y, b.x, b.y); if (c > l * 1.12) { b.x = a.x + (b.x - a.x) / c * l * 1.12; b.y = a.y + (b.y - a.y) / c * l * 1.12; b.ox = b.x; b.oy = b.y; } } // Knochen reißen nie
   }
   for (const k of BODY_KEYS) if (N[k]) { const n = N[k]; if (!isFinite(n.x + n.y)) { n.x = n.ox = T[k].x; n.y = n.oy = T[k].y; } p[k] = { x: n.x, y: n.y }; }
+  if (steps) stepChains(B, N); p.ch = {}; for (const k in B.ch || {}) { const [a, b] = k.split('|'); p.ch[k] = [N[a], ...B.ch[k], N[b]]; }
   p.shoulder = { x: N.neck.x, y: N.neck.y + 4 }; stepHang(f, p);
 }
 function setBoneMax(c, a, l) { const m = dist(a.x, a.y, c.x, c.y); if (m > l) { c.x = a.x + (c.x - a.x) / m * l; c.y = a.y + (c.y - a.y) / m * l; } }
@@ -2777,6 +2811,7 @@ function drawHat(slot, x, y, d, col, t) {
 // Beine und Hüfte gleiten zwischen Posen. Arme und Waffe bleiben exakt, damit das Zielen stimmt.
 const SMOOTH_KEYS = ['hip', 'kneeL', 'kneeR', 'footL', 'footR'];
 function smoothPose(f, p) {
+  if (p.ch) return p;
   const k = 1 - Math.exp(-(G.rdt === undefined ? 1 / 60 : G.rdt) * 55), o = { ...p }, v = f.vis || (f.vis = {});
   for (const n of SMOOTH_KEYS) { const q = p[n]; if (!q) { v[n] = null; continue; } const rx = q.x - f.x, ry = q.y - f.y; let s = v[n]; if (!s) s = v[n] = { x: rx, y: ry }; s.x += (rx - s.x) * k; s.y += (ry - s.y) * k; o[n] = { x: f.x + s.x, y: f.y + s.y }; }
   return o;
@@ -2787,16 +2822,18 @@ function drawFighter(f) {
   ctx.save(); ctx.translate((f.rx || 0) + ix, (f.ry || 0) + iy); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; if (f.size) { ctx.translate(f.x, f.y); ctx.scale(f.size, f.size); ctx.translate(-f.x, -f.y); } const d = f.facing, col = f.frozen > 0 ? '#bfe8ff' : f.flash > 0 ? '#fff' : f.color, S = [];
   if (f.onGround) { ctx.fillStyle = 'rgba(0,0,0,.34)'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 1, 19, 4.5, 0, 0, 7); ctx.fill(); }
   const stump = [], bones = [];
-  const limb = (a, b, c, st, rx, ry, w) => {
+  const chain = (x, y) => p.ch && p.ch[x + '|' + y], limb = (a, b, c, st, rx, ry, w, k) => {
+    if (st === 0 && k && chain(k[0], k[1]) && chain(k[1], k[2])) { S.push({ pts: [...chain(k[0], k[1]), ...chain(k[1], k[2]).slice(1)], w }); return; }
     if (st === 2) { const e = { x: a.x + rx * 6, y: a.y + ry * 6 }; S.push({ pts: [a, e], w }); stump.push(e); return; } if (!b || !c) return;
     if (st === 1) { const m = { x: (b.x + c.x) / 2 + (c.y - b.y) * .3, y: (b.y + c.y) / 2 - (c.x - b.x) * .3 }; S.push({ pts: [a, b, m, c], w }); bones.push(m); }
     else S.push({ pts: [a, b, c], w });
   };
   const off = p.main === 'R' ? 'L' : 'R'; drawHang(f);
-  limb(p.hip, p.kneeL, p.footL, f.limbs.legL.s, -.3, 1, 3.6); limb(p.hip, p.kneeR, p.footR, f.limbs.legR.s, .3, 1, 3.6);
-  limb(p.shoulder, p['elbow' + off], p['hand' + off], f.limbs['arm' + off].s, -d * .5, 1, 3.2);
-  S.push({ pts: [p.hip, p.spine || { x: (p.hip.x + p.neck.x) / 2, y: (p.hip.y + p.neck.y) / 2 }, p.neck], w: 4.2, curve: 1 });
-  const mainArm = []; const n0 = S.length; limb(p.shoulder, p['elbow' + p.main], p['hand' + p.main], f.limbs['arm' + p.main].s, d * .5, 1, 3.2); mainArm.push(...S.splice(n0));
+  limb(p.hip, p.kneeL, p.footL, f.limbs.legL.s, -.3, 1, 3.6, ['hip', 'kneeL', 'footL']); limb(p.hip, p.kneeR, p.footR, f.limbs.legR.s, .3, 1, 3.6, ['hip', 'kneeR', 'footR']);
+  limb(p.shoulder, p['elbow' + off], p['hand' + off], f.limbs['arm' + off].s, -d * .5, 1, 3.2, ['neck', 'elbow' + off, 'hand' + off]);
+  if (chain('hip', 'spine') && chain('spine', 'neck')) { S.push({ pts: [...chain('hip', 'spine'), ...chain('spine', 'neck').slice(1)], w: 4.2 }); if (chain('neck', 'head')) S.push({ pts: chain('neck', 'head'), w: 3 }); }
+  else S.push({ pts: [p.hip, p.spine || { x: (p.hip.x + p.neck.x) / 2, y: (p.hip.y + p.neck.y) / 2 }, p.neck], w: 4.2, curve: 1 });
+  const mainArm = []; const n0 = S.length; limb(p.shoulder, p['elbow' + p.main], p['hand' + p.main], f.limbs['arm' + p.main].s, d * .5, 1, 3.2, ['neck', 'elbow' + p.main, 'hand' + p.main]); mainArm.push(...S.splice(n0));
   drawBack(f, p, d, G.time); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   for (const s of S) strokePts(s.pts, s.w + 2, '#0b0b10', s.curve); for (const s of S) strokePts(s.pts, s.w, col, s.curve);
   for (const e of stump) { ctx.fillStyle = '#8a0a0a'; ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, 7); ctx.fill(); }
@@ -3601,7 +3638,7 @@ const ENEMY = {
 const WORLD1 = [
   { n: 'Hinterhof', d: 'Lerne die Wellen und das Tor kennen', theme: 'pit', diff: 0, ed: 0.4, drop: 'pistol', secs: [['flat', ['g', 'g']], ['gaps', ['g']], ['flat', ['gg']]] },
   { n: 'Schlucht', d: 'Sprünge über den Abgrund', theme: 'canyon', diff: 0, ed: 0.4, drop: 'pistol', secs: [['gaps', ['g'], [['pistol', 150, 500]]], ['stairs', ['p']], ['gaps', ['gp']]] },
-  { n: 'Verlies', d: 'Keine Waffen, nur Fäuste', theme: 'dungeon', diff: 0, ed: 0.45, fists: 1, secs: [['spikes', ['g', 'gg']], ['corr', ['ggg']], ['spikes', ['gg', 'gg']]] },
+  { n: 'Verlies', d: 'Keine Waffen, nur Fäuste', theme: 'dungeon', diff: 0, ed: .35, fists: 1, secs: [['spikes', ['g']], ['corr', ['gg']], ['spikes', ['g', 'g']]] },
   { n: 'Sägewerk', d: 'Klingen gegen Klingen', theme: 'mill', diff: 0, ed: 0.5, drop: 'katana', secs: [['flat', ['k'], [['katana', 200, 500]]], ['wall', ['k', 'g']], ['flat', ['kg']]] },
   { n: 'Neon-Dächer', d: 'Du startest mit Pistole, sie schießen zurück', theme: 'neon', diff: 1, ed: .4, start: 'pistol', drop: 'uzi', secs: [['gaps', ['p']], ['stairs', ['pg']], ['gaps', ['pp']]] },
   { n: 'Vulkan', d: 'Bewegliche Plattformen über Lava', theme: 'volcano', diff: 1, ed: 0.55, start: 'pistol', drop: 'pistol', secs: [['lava', ['p']], ['lava', ['p']], ['lava', ['pg']]] },

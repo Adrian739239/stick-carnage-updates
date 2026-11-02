@@ -24,7 +24,7 @@ canvas{display:block;outline:none;touch-action:none;user-select:none;-webkit-use
 
 </script>
 <script>
-const GAME_VERSION = '2.13.1', GAME_BUILD = 1793608899;
+const GAME_VERSION = '2.14.0', GAME_BUILD = 1793609380;
 'use strict';
 /* =========================================================
    STICK CARNAGE 2
@@ -803,7 +803,7 @@ const LEVELS = [
 ];
 function loadLevel(idx, propList, seed = 0) {
   seed = Number.isSafeInteger(seed) ? seed >>> 0 : 0;
-  const s = seed ? makeArenaVariant(LEVELS[idx],seed) : LEVELS[idx]; GRAV = 2100 * (s.grav || 1) * (G.cfg && G.cfg.rule === 1 ? .55 : 1);
+  const custom = typeof idx === 'object', s = custom ? idx : seed ? makeArenaVariant(LEVELS[idx],seed) : LEVELS[idx]; if (custom) idx = s.id; GRAV = 2100 * (s.grav || 1) * (G.cfg && G.cfg.rule === 1 ? .55 : 1);
   level = { idx, seed, template: s, cacheKey: idx + ':' + seed, name: s.name, theme: s.theme, ambient: s.ambient, weather: s.weather, wind: s.wind || 0, lights: s.lights, spawns: s.spawns, w: 1600, h: 900,
     plats: s.plats.map(p => ({ ...p, px: p.x, py: p.y, dx: 0, dy: 0 })), hazards: s.hazards.map(h => ({ ...h, px: h.x, py: h.y, cd: 0, spin: 0 })) };
   level.plats.push({ x: -60, y: -900, w: 60, h: 1800, px: -60, py: -900, dx: 0, dy: 0, invisible: 1 }, { x: 1600, y: -900, w: 60, h: 1800, px: 1600, py: -900, dx: 0, dy: 0, invisible: 1 });
@@ -1594,6 +1594,7 @@ function limbSegments(f) {
     if (p['elbow' + s]) o.push({ limb: 'arm' + s, x1: p.shoulder.x, y1: p.shoulder.y, x2: p['elbow' + s].x, y2: p['elbow' + s].y, r: 4 }, { limb: 'arm' + s, x1: p['elbow' + s].x, y1: p['elbow' + s].y, x2: p['hand' + s].x, y2: p['hand' + s].y, r: 4 });
     if (p['knee' + s]) o.push({ limb: 'leg' + s, x1: p.hip.x, y1: p.hip.y, x2: p['knee' + s].x, y2: p['knee' + s].y, r: 4.5 }, { limb: 'leg' + s, x1: p['knee' + s].x, y1: p['knee' + s].y, x2: p['foot' + s].x, y2: p['foot' + s].y, r: 4.5 });
   }
+  if (f.boss) for (const s of o) { s.x1 = f.x + (s.x1 - f.x) * 1.35; s.y1 = f.y + (s.y1 - f.y) * 1.35; s.x2 = f.x + (s.x2 - f.x) * 1.35; s.y2 = f.y + (s.y2 - f.y) * 1.35; s.r *= 1.35; }
   return o;
 }
 function stumpPos(f, l) { const p = f.pose; return l.startsWith('arm') ? { x: p.shoulder.x, y: p.shoulder.y + 3 } : { x: p.hip.x, y: p.hip.y + 4 }; }
@@ -1770,7 +1771,7 @@ function blockShot(t, b, x, y) {
 function shotVsFighters(b, nx, ny) {
   const len = dist(b.x, b.y, nx, ny), n = Math.max(1, Math.ceil(len / 5));
   for (const t of fighters) {
-    if (t.dead || t === b.owner || b.hit.has(t)) continue;
+    if (t.dead || t === b.owner || b.hit.has(t) || (t.team && b.owner && b.owner.team === t.team)) continue;
     if (Math.abs(t.x - b.x) > len + 60 || Math.abs(t.y - 36 - b.y) > len + 70) continue;
     const segs = limbSegments(t);
     for (let i = 1; i <= n; i++) {
@@ -1919,7 +1920,7 @@ function explode(x, y, R, dmg, owner) {
   mapHit(x, y, R * .42, 'blast', owner);
 }
 function hitFighter(t, limb, dmg, src, dx, dy, kb, by, hx, hy) {
-  if (t.dead || G.phase === 'countdown') return; t.hurtT = 0; if (hx === undefined) { hx = t.x; hy = t.y - 34; } kb = kb || 0;
+  if (t.dead || G.phase === 'countdown' || (t.team && by && by.team === t.team)) return; t.hurtT = 0; if (hx === undefined) { hx = t.x; hy = t.y - 34; } kb = kb || 0;
   const L = t.limbs[limb]; let d = dmg * (by ? by.m.dmg : 1) * (G.suddenDeath ? 1.6 : 1) * (by && src.cat === 'melee' && by.tier ? TIERS[by.tier].dmg : 1); if (limb === 'head') d *= 1.5 * t.m.head * (hasJ(t, 'skull') ? 1.2 : 1); if (limb === 'torso' && hasJ(t, 'ribs')) d *= 1.2; if (L.s === 1) d *= 1.25;
   L.hp -= d; const hpLoss = ((limb === 'torso' || limb === 'head') ? d : d * .6) * (by ? .5 : 1); t.hp -= hpLoss; if (by && by !== t) E('dmg', hx, hy - 12, Math.round(hpLoss)); if (by && by !== t) { t.lastBy = by, t.lastByT = G.time; if (by.m.vamp && !by.dead) by.hp = Math.min(by.maxHp, by.hp + hpLoss * by.m.vamp); }
   E('blood', hx, hy, Math.round(5 + d * .5), dx * 190, dy * 190 - 110, src.type === 'slash' ? 1.2 : .9, t.slot); E('sfx', 'hit', hx); if (d >= 10 && src.type !== 'fire') E('impactMist', hx, hy, dx, dy, Math.round(d), t.slot);
@@ -2102,13 +2103,13 @@ function climbStep(f, gx, gy) {
   return b;
 }
 function aiInput(f, dt) {
-  const a = f.ai, D = DIFF[G.cfg ? G.cfg.diff : 1], r = { mx: 0, jump: false, down: false, fire: false, block: false, pick: false, reload: false, aim: f.aim };
+  const a = f.ai, D = DIFF[G.cfg ? G.cfg.diff : 1], r = { mx: 0, jump: false, down: false, fire: false, block: false, pick: false, reload: false, aim: f.aim }; if (f.holdAI) return r;
   a.t -= dt; a.jumpT -= dt; if (a.hold > 0) { a.hold -= dt; r.jump = true; }
   // Unerreichbare Gegenstände werden zehn Sekunden gemieden, sonst pendelt der Bot zwischen zwei Zielen.
   a.bans = a.bans || []; const banned = it => a.bans.some(b => b.it === it && b.until > G.time), ban = it => { if (!it) return; a.bans.push({ it, until: G.time + 10 }); if (a.bans.length > 5) a.bans.shift(); };
   if (a.t <= 0) {
     a.t = rand(.08, .2) + D.react * .5; let best = null, bd = 1e9;
-    for (const t of fighters) { if (t === f || t.dead) continue; let d = dist(f.x, f.y, t.x, t.y); if (rayWorld(f.x, f.y - 40, t.x, t.y - t.height * .55)) d += 260; if (d < bd) { bd = d; best = t; } }
+    for (const t of fighters) { if (t === f || t.dead || (f.team && t.team === f.team)) continue; let d = dist(f.x, f.y, t.x, t.y); if (rayWorld(f.x, f.y - 40, t.x, t.y - t.height * .55)) d += 260; if (d < bd) { bd = d; best = t; } }
     if (best !== a.target) a.react = D.react; a.target = best; a.item = null; const w = WEAPONS[f.weapon];
     const hurt = f.hp < 55 || LIMB_KEYS.some(l => f.limbs[l].s === 1); if (hurt) { let hi = null, h2 = 600; for (const it of items) { if (!it.heal || !it.onG || banned(it)) continue; const d = dist(f.x, f.y, it.x, it.y); if (d < h2) { h2 = d; hi = it; } } a.item = hi; }
     if (!a.item && (f.weapon === 'fists' || (w.cat !== 'melee' && f.ammo <= 0 && f.res <= 0))) { let bi = null, b2 = 1e9; for (const it of items) { if (it.thrown || it.heal || banned(it) || (!it.onG && !it.crate)) continue; if (f.y - it.y > AI_CLIMB * 2100 / GRAV && !climbStep(f, it.x, it.y)) continue; const d = dist(f.x, f.y, it.x, it.y); if (d < b2 && d < 700) { b2 = d; bi = it; } } a.item = bi; if (a.item && a.item === a.lastItem) a.itemT = (a.itemT || 0) + .15; else a.itemT = 0; a.lastItem = a.item; if (a.itemT > 2.2) { ban(a.item); a.item = null; a.itemT = 0; } }
@@ -2362,7 +2363,7 @@ function stepGame(dt) {
   updateLevel(dt); stepTimers(dt); stepHazardEvents();
   if (G.phase === 'countdown') { G.timer -= dt; const c = Math.ceil(G.timer); if (c !== G.lastCount && c > 0) { G.lastCount = c; if (!G.attract) { E('sfx', 'count'); } } if (G.timer <= 0) { G.phase = 'play'; E('sfx', 'go'); } }
   else if (G.phase === 'play') {
-    campaignStep();
+    campaignStep(dt); if (G.phase !== 'play') return;
     G.crateT -= dt; G.roundT += dt; if (G.crateT <= 0) { spawnCrate(); G.crateT = G.cfg.rule === 6 || G.suddenDeath ? rand(.6, 1.2) : G.roundT < 12 ? rand(.7, 1.3) : rand(3.5, 6); }
     if (G.roundT > 60 && !G.suddenDeath) { G.suddenDeath = true; E('feed', 'BLUTRAUSCH: Mehr Schaden, Waffen regnen!', '#ff5252'); E('sfx', 'go'); }
   } else if (G.phase === 'end') { G.timer -= dt; if (G.timer <= 0) { if (G.matchWinner) { endMatch(); return; } startRound(); return; } }
@@ -2371,7 +2372,7 @@ function stepGame(dt) {
   G.tk = 0; stepShots(dt); stepMapFire(dt); stepProps(dt); stepItems(dt);
   if (++G.stepN % 2 === 0) { stepRagdolls(); stepFx(1 / 60); }
   if (G.slow > 0) { G.slow -= dt / G.ts; if (G.slow <= 0) G.ts = 1; }
-  if (G.phase === 'play') {
+  if (G.phase === 'play' && !G.cfg.stage) {
     const alive = fighters.filter(f => !f.dead); if (!G.attract && ((fighters.length > 2 && alive.length === 2) || fighters.some(f => !f.dead && f.hp < 30))) M.intensity = 2;
     if (alive.length <= 1 || G.roundT >= ROUND_LIMIT) {
       const top = alive.slice().sort((a, b) => b.hp - a.hp); G.phase = 'end'; G.timer = 3; G.winner = top.length > 1 && top[0].hp - top[1].hp < 1 ? null : top[0] || null; G.ts = .3; G.slow = 1; if (alive.length > 1) E('feed', 'Zeit abgelaufen: Die meisten Leben gewinnen', '#ffd24a');
@@ -2382,7 +2383,7 @@ function stepGame(dt) {
 function endMatch() {
   if (G.attract) { startMatch(G.cfg, fighters.map(f => ({ name: f.name, device: 'bot', look: f.look }))); return; }
   G.results = fighters.map(f => ({ name: f.name, slot: f.slot, col: f.color, wins: f.wins, kills: f.kills, deaths: f.deaths, lost: f.lost })).sort((a, b) => b.wins - a.wins || b.kills - a.kills);
-  if (G.kind === 'camp') campaignEnd(G.results[0].slot === 0);
+  if (G.kind === 'camp') { campaignEnd(G.stageWon); G.results = G.results.filter(r => r.slot === 0); }
   G.running = false; M.intensity = 0; musicPlay('menu'); sfx('win'); goScreen('results');
   if (NET.role === 'host') { flushEv(); sendAll({ t: 'results', r: G.results }); }
 }
@@ -2689,7 +2690,7 @@ function smoothPose(f, p) {
 function ragShift(r, on) { if (on) { const k = ((G.stepN % 2) + (G.alpha === undefined ? 1 : G.alpha)) / 2; for (const p of r.pts) { p.dx0 = p.x; p.dy0 = p.y; if (!p.pin) { p.x += clamp(p.x - p.ox, -14, 14) * k; p.y += clamp(p.y - p.oy, -14, 14) * k; } } } else for (const p of r.pts) { p.x = p.dx0; p.y = p.dy0; } }
 function drawFighter(f) {
   if (!f.pose) return; const p = smoothPose(f, f.pose), a0 = G.alpha === undefined ? 1 : G.alpha, ix = f.device === 'remote' || Math.abs(f.lx - f.x) > 60 || Math.abs(f.ly - f.y) > 60 ? 0 : (f.lx - f.x) * (1 - a0), iy = f.device === 'remote' || Math.abs(f.lx - f.x) > 60 || Math.abs(f.ly - f.y) > 60 ? 0 : (f.ly - f.y) * (1 - a0);
-  ctx.save(); ctx.translate((f.rx || 0) + ix, (f.ry || 0) + iy); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; const d = f.facing, col = f.frozen > 0 ? '#bfe8ff' : f.flash > 0 ? '#fff' : f.color, S = [];
+  ctx.save(); ctx.translate((f.rx || 0) + ix, (f.ry || 0) + iy); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; if (f.boss) { ctx.translate(f.x, f.y); ctx.scale(1.35, 1.35); ctx.translate(-f.x, -f.y); } const d = f.facing, col = f.frozen > 0 ? '#bfe8ff' : f.flash > 0 ? '#fff' : f.color, S = [];
   if (f.onGround) { ctx.fillStyle = 'rgba(0,0,0,.34)'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 1, 19, 4.5, 0, 0, 7); ctx.fill(); }
   const stump = [], bones = [];
   const limb = (a, b, c, st, rx, ry, w) => {
@@ -3361,7 +3362,7 @@ function screenPause() {
   if (btn2(480, NET.role === 'off' && G.phase !== 'end' ? 456 : 394, 320, 52, NET.role === 'off' ? 'Zum Hauptmenü' : 'Spiel verlassen', { size: 22 })) { res(); netClose(); goScreen('title'); startAttract(); }
 }
 function screenResults() {
-  dim(.74); const r = G.results || [], win = r[0]; if (G.kind === 'camp' && NET.role !== 'off') G.kind = 'single'; if (!win) { goScreen('title'); return; } text(win.name.toUpperCase() + ' GEWINNT!', 640, 130, `72px ${FONT_D}`, win.col || PCOL[win.slot], 'center', 8);
+  dim(.74); const r = G.results || [], win = r[0]; if (G.kind === 'camp' && NET.role !== 'off') G.kind = 'single'; if (!win) { goScreen('title'); return; } text(G.kind === 'camp' ? (G.campWon ? 'GESCHAFFT!' : 'VERLOREN!') : win.name.toUpperCase() + ' GEWINNT!', 640, 130, `72px ${FONT_D}`, win.col || PCOL[win.slot], 'center', 8);
   panel(240, 180, 800, 90 + r.length * 56); const cols = [270, 560, 680, 790, 900];['Spieler', 'Siege', 'Kills', 'Tode', 'Glieder ab'].forEach((h, i) => text(h, cols[i], 224, `600 15px ${FONT}`, UIC.dim));
   r.forEach((p, i) => { const y = 272 + i * 52; ctx.fillStyle = p.col || PCOL[p.slot]; ctx.beginPath(); ctx.arc(cols[0] + 10, y - 7, 10, 0, 7); ctx.fill(); text(p.name, cols[0] + 32, y, `600 20px ${FONT}`, '#fff');[p.wins, p.kills, p.deaths, p.lost].forEach((v, k) => text(String(v), cols[k + 1], y, `600 20px ${FONT}`, '#fff')); });
   const y = 300 + r.length * 56 + 40;
@@ -3429,7 +3430,7 @@ function drawHUD() {
     const k = Math.ceil(G.timer), fr = G.timer - Math.floor(G.timer), pop = 130 + 60 * clamp((fr - .72) / .28, 0, 1); text(k > 0 ? String(k) : 'KAMPF!', 640, 380, `${pop}px ${FONT_D}`, '#fff', 'center', 10); text(level.name + (G.cfg.rule ? '  ·  ' + RULES[G.cfg.rule] : ''), 640, 430, `28px ${FONT_D}`, UIC.gold, 'center', 4);
     if (G.round === 1 && fighters.some(f => f.device === 'kbm')) text(`Maus zielen · ${firstBind('kbm', 'fire')} schießen · ${firstBind('kbm', 'block')} blocken · ${firstBind('kbm', 'pick')} aufheben oder werfen · ${firstBind('kbm', 'reload')} nachladen`, 640, 470, `600 16px ${FONT}`, '#ddd', 'center', 3);
   } else if (G.phase === 'play' && G.roundT < .7) { ctx.globalAlpha = clamp(1.4 - G.roundT * 2, 0, 1); text('KAMPF!', 640, 380, `${110 + 70 * clamp(1 - G.roundT / .22, 0, 1)}px ${FONT_D}`, UIC.red, 'center', 10); ctx.globalAlpha = 1; }
-  if (G.phase === 'end') text(G.winner ? G.winner.name + ' gewinnt die Runde!' : 'Unentschieden!', 640, 240, `60px ${FONT_D}`, G.winner ? G.winner.color : '#fff', 'center', 8);
+  if (G.phase === 'end') text(G.cfg.stage ? (G.stageWon ? 'Level geschafft!' : 'Keine Leben mehr!') : G.winner ? G.winner.name + ' gewinnt die Runde!' : 'Unentschieden!', 640, 240, `60px ${FONT_D}`, G.winner ? G.winner.color : '#fff', 'center', 8);
   if (G.suddenDeath && G.phase === 'play') text('BLUTRAUSCH  ' + Math.max(0, Math.ceil(ROUND_LIMIT - G.roundT)), 640, 44, `26px ${FONT_D}`, Math.sin(G.time * 6) > 0 ? '#ff5252' : '#ff9a90', 'center', 4);
   for (const f of fighters) {
     if (f.dead || !f.pose || !isLocal(f)) continue; if (G.paused || G.overlay) continue; aimLine(f);
@@ -3474,53 +3475,106 @@ function drawArenaPreview(idx, x, y, w, h) {
   ctx.restore();
 }
 
-// ---------- Kampagne (Test): Welt 1 mit 10 Leveln und Bossfight ----------
+// ---------- Kampagne: Welt 1, Level aus mehreren Abschnitten mit Gegnerwellen und Boss ----------
+const OW = { oneway: 1 };
+// Bauteile: Jeder Abschnitt beginnt links und endet rechts auf derselben Bodenhöhe.
+const SEC = {
+  flat: { plats: [P(0, 740, 1600, 160), P(300, 600, 220, 18, OW), P(1000, 600, 220, 18, OW)], props: [['crate', 650, 740], ['barrel', 1250, 740]], sp: [[1100, 740], [1400, 740], [1100, 600], [700, 740]] },
+  gaps: { plats: [P(0, 740, 420, 160), P(600, 700, 280, 200), P(1060, 740, 540, 160), P(640, 520, 200, 18, OW)], props: [['barrel', 1180, 740]], sp: [[740, 700], [1200, 740], [1450, 740]] },
+  stairs: { plats: [P(0, 740, 1600, 160), P(420, 640, 240, 100), P(660, 540, 280, 200), P(940, 640, 240, 100), P(1240, 600, 200, 18, OW)], props: [['crate', 300, 740]], sp: [[800, 540], [1300, 740], [1320, 600], [1450, 740]] },
+  spikes: { plats: [P(0, 740, 400, 160), P(1200, 740, 400, 160), P(400, 860, 800, 40, { nocrate: 1 }), P(470, 660, 150, 18, OW), P(720, 620, 160, 18, OW), P(980, 660, 150, 18, OW)], hazards: [{ type: 'spikes', x: 400, y: 826, w: 800, h: 34 }], props: [], sp: [[800, 620], [1300, 740], [1450, 740]] },
+  lava: { plats: [P(0, 740, 340, 160), P(1260, 740, 340, 160), P(450, 700, 170, 22, { move: { dx: 0, dy: -90, period: 4 } }), P(720, 640, 160, 22, { move: { dx: 120, dy: 0, period: 5 } }), P(1040, 700, 170, 22, { move: { dx: 0, dy: -90, period: 4, phase: 2 } })], hazards: [{ type: 'lava', x: 0, y: 845, w: 1600, h: 55 }], props: [], sp: [[1400, 740], [1320, 740], [1480, 740]] },
+  wall: { plats: [P(0, 740, 1600, 160), P(740, 330, 100, 410), P(520, 620, 170, 18, OW), P(560, 470, 150, 18, OW), P(880, 470, 150, 18, OW), P(900, 620, 170, 18, OW)], props: [['barrel', 300, 740], ['crate', 1250, 740]], sp: [[1100, 740], [1300, 740], [980, 620], [950, 470]] },
+  corr: { plats: [P(0, 740, 1600, 160), P(260, 0, 1080, 480), P(560, 680, 60, 60), P(980, 680, 60, 60)], props: [['crate', 780, 740]], sp: [[1100, 740], [1420, 740], [820, 740]] },
+  arena: { plats: [P(0, 760, 1600, 140), P(200, 580, 260, 18, OW), P(1140, 580, 260, 18, OW), P(640, 440, 320, 18, OW)], props: [], sp: [[1200, 760]], boss: 1 },
+};
+const THEMES = { pit: ['#7c7a86', 'dust', '#fff0d0'], canyon: ['#5c6c96', 'snow', '#a8c0ff'], dungeon: ['#604a48', 'dust', '#ff9a3c'], volcano: ['#6e4a3a', 'embers', '#ff7a20'], neon: ['#4c4a78', 'rain', '#22e6ff'], mill: ['#6a665a', 'dust', '#ffb060'] };
+const ENEMY = { g: { n: 'Schläger', w: 'fists', hp: 45 }, k: { n: 'Klinge', w: 'katana', hp: 60 }, p: { n: 'Schütze', w: 'pistol', hp: 50 }, s: { n: 'Schrotter', w: 'shotgun', hp: 90 }, b: { n: 'Bomber', w: 'grenade', hp: 60 }, h: { n: 'Koloss', w: 'hammer', hp: 150 }, B: { n: 'Der Schlächter', w: 'chainsaw', hp: 800 } };
+// Abschnitt: [Bauteil, Wellen, Gegenstände]
 const WORLD1 = [
-  { n: 'Erste Schritte', d: '1 Gegner, leichte Bots', bots: 1, diff: 0, rule: 0 },
-  { n: 'Faustkampf', d: 'Keine Waffen, nur Fäuste', bots: 1, diff: 0, rule: 0, noCrates: 1 },
-  { n: 'Zwei auf einmal', d: '2 Gegner', bots: 2, diff: 0, rule: 0 },
-  { n: 'Klingenkunst', d: 'Nur Nahkampfwaffen', bots: 1, diff: 1, rule: 2 },
-  { n: 'Scharfschützenduell', d: 'Alle mit Sniper, keine Kisten', bots: 1, diff: 1, rule: 5, noCrates: 1, loadout: ['sniper', 'sniper'] },
-  { n: 'Mondlandung', d: 'Niedrige Schwerkraft, 2 Gegner', bots: 2, diff: 1, rule: 1 },
-  { n: 'Granatenhagel', d: 'Unendlich Granaten für alle', bots: 2, diff: 1, rule: 5, noCrates: 1, loadout: ['grenade', 'grenade'] },
-  { n: 'Ein Treffer', d: 'Jeder Treffer tötet', bots: 2, diff: 2, rule: 7 },
-  { n: 'Waffenregen', d: '3 Gegner, überall Waffen', bots: 3, diff: 2, rule: 6 },
-  { n: 'Letzte Prüfung', d: '3 starke Gegner', bots: 3, diff: 3, rule: 0 },
-  { n: 'BOSS: Der Schlächter', d: 'Du mit Katana gegen 800 Leben und Kettensäge', bots: 1, diff: 3, rule: 5, noCrates: 1, boss: 800, loadout: ['katana', 'chainsaw'] },
+  { n: 'Hinterhof', d: 'Lerne die Wellen und das Tor kennen', theme: 'pit', diff: 0, secs: [['flat', ['g', 'gg']], ['gaps', ['g', 'g']], ['flat', ['gg', 'gp'], [['bandage', 800, 400]]]] },
+  { n: 'Schlucht', d: 'Sprünge über den Abgrund', theme: 'canyon', diff: 0, secs: [['gaps', ['g', 'gp']], ['stairs', ['pp'], [['pistol', 800, 300]]], ['gaps', ['gg', 'gp']]] },
+  { n: 'Verlies', d: 'Keine Waffen, nur Fäuste', theme: 'dungeon', diff: 1, secs: [['spikes', ['g', 'gg']], ['corr', ['ggg'], [['bandage', 500, 600]]], ['spikes', ['gg', 'gg']]] },
+  { n: 'Sägewerk', d: 'Klingen gegen Klingen', theme: 'mill', diff: 1, secs: [['flat', ['k', 'gk'], [['katana', 200, 500]]], ['wall', ['kk', 'gk']], ['flat', ['kk', 'kkg'], [['medkit', 800, 400]]]] },
+  { n: 'Neon-Dächer', d: 'Du startest mit Pistole, sie schießen zurück', theme: 'neon', diff: 1, start: 'pistol', secs: [['gaps', ['p', 'pp']], ['stairs', ['pg', 'pp'], [['uzi', 300, 500]]], ['gaps', ['pp', 'ps']]] },
+  { n: 'Vulkan', d: 'Bewegliche Plattformen über Lava', theme: 'volcano', diff: 1, start: 'pistol', secs: [['lava', ['p', 'pg']], ['lava', ['pp'], [['medkit', 1400, 300]]], ['lava', ['pp', 's']]] },
+  { n: 'Schießstand', d: 'Scharfschützen im Gang', theme: 'pit', diff: 2, start: 'sniper', secs: [['corr', ['pp', 'ps']], ['stairs', ['pp', 's']], ['corr', ['ss', 'pps'], [['medkit', 500, 600]]]] },
+  { n: 'Bunker', d: 'Granaten von allen Seiten', theme: 'dungeon', diff: 2, start: 'grenade', secs: [['flat', ['b', 'bg'], [['grenade', 300, 500]]], ['wall', ['bb', 'bp'], [['grenade', 300, 500]]], ['spikes', ['bb', 'bbp'], [['medkit', 800, 400]]]] },
+  { n: 'Festung', d: 'Kolosse mit 150 Leben', theme: 'mill', diff: 2, start: 'shotgun', secs: [['wall', ['h', 'gp']], ['stairs', ['hp', 'ss'], [['shotgun', 300, 500]]], ['corr', ['hh', 'hps'], [['medkit', 500, 600]]]] },
+  { n: 'Feuerprobe', d: 'Alles auf einmal', theme: 'volcano', diff: 3, start: 'ak', secs: [['lava', ['pp', 'bs']], ['spikes', ['hp', 'kk'], [['ak', 300, 500]]], ['flat', ['hs', 'hkp', 'hhb'], [['serum', 800, 400]]]] },
+  { n: 'BOSS: Der Schlächter', d: 'Sprungangriff, Klingenfächer, Verstärkung', theme: 'volcano', diff: 2, start: 'katana', secs: [['arena', ['B'], [['medkit', 330, 500], ['medkit', 1270, 500]]]] },
 ];
+WORLD1.forEach((l, i) => l.secs.forEach((s, k) => { const b = SEC[s[0]], t = THEMES[l.theme]; s.map = { id: 9000 + i * 10 + k, name: l.n, theme: l.theme, ambient: t[0], weather: t[1], plats: b.plats, props: b.props, hazards: b.hazards || [], spawns: [[80, b.plats[0].y]], lights: [[800, 120, 900, t[2], .85], [1300, 300, 420, t[2], .6]] }; s.sp = b.sp; s.boss = b.boss; }));
 const campCleared = () => profile.stats.camp || 0;
 function startCamp(i) {
-  const c = WORLD1[i], p = [{ name: profile.name || 'Du', device: 'kbm', look: profile.look }];
-  for (let b = 0; b < c.bots; b++) p.push(c.boss ? { name: 'Der Schlächter', device: 'bot', look: { color: 'shadow', hat: 'horns', face: 'skull', back: 'cape', blood: 'black' } } : { name: 'Bot ' + (b + 1), device: 'bot', look: randomLook() });
-  G.kind = 'camp'; G.campI = i; playFight({ diff: c.diff, level: i, rounds: 1, rule: c.rule, noCrates: c.noCrates, loadout: c.loadout, boss: c.boss }, p, true);
+  const l = WORLD1[i]; G.kind = 'camp'; G.campI = i; G.st = { lv: i, sec: 0, wave: 0, lives: 3, wait: 1, age: 0, open: false, dead: 0, entry: null };
+  playFight({ diff: l.diff, level: l.secs[0].map, rounds: 1, rule: 0, noCrates: 1, stage: 1 }, [{ name: profile.name || 'Du', device: 'kbm', look: profile.look }], true);
 }
-// Startwaffen und Boss werden nach dem Zurücksetzen der Kämpfer gesetzt.
+const stageSec = () => WORLD1[G.st.lv].secs[G.st.sec];
+function giveWeapon(f, k, spare) { const w = WEAPONS[k]; f.weapon = k; f.tier = 0; f.ammo = k === 'fists' ? 0 : w.cat === 'melee' ? 0 : magOf(k, 0); f.res = spare ? 99 : resOf(k, 0); }
+// Tor und Gegenstände gehören zum Abschnitt, Waffe und Leben nimmt der Spieler mit.
+function sectionSetup() {
+  const s = stageSec(), S = G.st; S.wave = 0; S.wait = 1; S.age = 0; S.open = !!s.boss; S.gate = null;
+  if (!s.boss) { S.gate = { x: 1500, y: -900, w: 40, h: 1800, px: 1500, py: -900, dx: 0, dy: 0, invisible: 1 }; level.plats.push(S.gate); rebuildSolids(); }
+  for (const [k, x, y] of s[2] || []) items.push(HEAL_DEF[k] ? { id: itemId++, x, y, vx: 0, vy: 0, heal: k, onG: false, angle: 0, spin: 0 } : { id: itemId++, x, y, vx: 0, vy: 0, weapon: k, tier: 0, ammo: magOf(k, 0), res: resOf(k, 0), onG: false, angle: 0, spin: 0 });
+}
+function enterSection(i) {
+  const S = G.st, p = fighters[0]; S.sec = i; fighters.length = 1; const m = stageSec().map; loadLevel(m); clearWorld(); p.x = p.netX = 80; p.y = p.netY = m.spawns[0][1] - 1; p.lx = p.x; p.ly = p.y; p.vx = p.vy = p.kx = 0; p.vis = null;
+  S.entry = { w: p.weapon, a: p.ammo, r: p.res }; sectionSetup(); UI.fade = 1;
+}
 function campaignRound() {
-  const c = G.cfg; if (c.loadout) fighters.forEach((f, i) => { const k = c.loadout[i ? 1 : 0], w = WEAPONS[k]; f.weapon = k; f.ammo = w.ammo || 0; f.res = w.res || 0; });
-  if (c.boss) { const b = fighters[1]; b.boss = true; b.rage = false; b.maxHp = b.hp = c.boss; }
+  if (!G.cfg.stage) return; const S = G.st, p = fighters[0], st = WORLD1[S.lv].start; S.sec = 0; S.lives = 3; S.dead = 0; if (st) giveWeapon(p, st); S.entry = { w: p.weapon, a: p.ammo, r: p.res }; sectionSetup();
 }
-function campaignStep() {
-  const b = G.cfg.boss && fighters[1]; if (!b || b.dead || b.rage || b.hp > b.maxHp / 2) return;
-  b.rage = true; b.m = { ...b.m, speed: b.m.speed * 1.3 }; b.setLabel('WUTANFALL!'); E('shake', 12); E('sfx', 'parry', b.x);
+function respawnPlayer() {
+  const S = G.st, p = fighters[0], e = S.entry; p.reset(80, stageSec().map.spawns[0][1] - 1); p.weapon = e.w; p.ammo = e.a; p.res = e.r; const a = { ...e }; enterSection(S.sec); S.entry = a; computePose(p);
+}
+function spawnEnemy(c) {
+  const S = G.st, T = ENEMY[c], sp = stageSec().sp, p = fighters[0], list = sp.filter(q => dist(q[0], q[1], p.x, p.y) > 300), q = pick(list.length ? list : sp), slot = fighters.length;
+  const f = new Fighter(slot, T.n, 'bot', { color: c === 'B' ? 'shadow' : c === 'h' ? 'crimson' : 'ash', hat: c === 'B' ? 'horns' : 'none', face: c === 'B' ? 'skull' : 'angry', back: c === 'B' ? 'cape' : 'none', blood: 'red' });
+  f.team = 1; fighters.push(f); f.reset(q[0], q[1] - 1); f.maxHp = f.hp = T.hp; giveWeapon(f, T.w, true); computePose(f); E('ring', f.x, f.y - 36, 50, '#ff5252', .3);
+  if (c === 'B') { f.boss = true; f.rage = false; S.bossT = 3; S.calls = 0; f.height = 90; } return f;
+}
+function stageFinish(won) { G.stageWon = won; G.phase = 'end'; G.timer = 2.4; G.winner = won ? fighters[0] : null; G.matchWinner = fighters[0]; G.ts = .4; G.slow = 1; }
+function campaignStep(dt) {
+  if (!G.cfg.stage) return; G.roundT = Math.min(G.roundT, 30); const S = G.st, p = fighters[0], s = stageSec(), foes = fighters.slice(1).filter(f => !f.dead);
+  const boss = fighters.find(f => f.boss); if (boss && boss.dead) { stageFinish(true); return; }
+  if (p.dead) { S.dead += dt; if (S.dead > 1.6) { S.dead = 0; S.lives--; if (S.lives <= 0) stageFinish(false); else respawnPlayer(); } return; }
+  if (boss) bossStep(boss, p, dt);
+  if (foes.length) { S.age += dt; if (S.age > 45 && !boss) for (const f of foes) kill(f, null, 0, -1, 'verschwindet'); return; }
+  if (S.wave < s[1].length) { S.wait -= dt; if (S.wait <= 0) { for (const c of s[1][S.wave]) spawnEnemy(c); S.wave++; S.wait = 1; S.age = 0; if (s[1].length > 1) E('feed', `Welle ${S.wave} von ${s[1].length}`, '#ffd24a'); } return; }
+  if (!S.open) { S.open = true; level.plats.splice(level.plats.indexOf(S.gate), 1); rebuildSolids(); E('sfx', 'go'); E('feed', 'Tor offen: weiter nach rechts!', '#7fe89a'); }
+  if (p.x > 1540 && !s.boss) { if (S.sec + 1 < WORLD1[S.lv].secs.length) enterSection(S.sec + 1); else stageFinish(true); }
+}
+// Der Boss kündigt jeden Angriff an, damit man ausweichen kann.
+function bossStep(b, p, dt) {
+  const S = G.st; if (!b.rage && b.hp <= b.maxHp / 2) { b.rage = true; b.m = { ...b.m, speed: b.m.speed * 1.25 }; b.setLabel('WUTANFALL!'); E('shake', 12); E('sfx', 'parry', b.x); }
+  if (S.calls < 2 && b.hp <= b.maxHp * (S.calls ? .33 : .66)) { S.calls++; spawnEnemy('g'); spawnEnemy('g'); E('feed', 'Der Schlächter ruft Verstärkung!', '#ff7a70'); }
+  if (b.leap) { if (b.onGround && S.air) { b.leap = false; S.air = false; b.holdAI = false; S.bossT = b.rage ? 2.2 : 3.4; E('shake', 16); E('sfx', 'boom', b.x); E('ring', b.x, b.y - 8, 300, '#ff5252', .4); E('dust', b.x, b.y, 24); if (Math.abs(p.x - b.x) < 300 && p.onGround) hitFighter(p, 'torso', 32, WEAPONS.hammer, Math.sign(p.x - b.x) || 1, -.6, 900, b); } else if (!b.onGround) { S.air = true; b.vx = S.lvx; } return; }
+  if (S.tele > 0) { S.tele -= dt; if (S.tele > 0) return; const dx = p.x - b.x; if (S.atk === 'leap') { b.leap = true; S.air = false; S.lvx = b.vx = clamp(dx, -900, 900); b.vy = -1050; b.onGround = false; b.ground = null; } else { b.holdAI = false; S.bossT = b.rage ? 2 : 3; const a0 = Math.atan2(p.y - 40 - b.y + 60, dx); for (let i = -3; i <= 3; i++) { const a = a0 + i * .16; shots.push({ id: shotId++, k: 'shuriken', x: b.x, y: b.y - 60, vx: Math.cos(a) * 760, vy: Math.sin(a) * 760, dmg: 16, owner: b, w: 'shuriken', life: 4, fuse: 0, hit: new Set(), grav: GRAV * .15, ang: a, spin: 1 }); } E('sfx', 'throw', b.x); } return; }
+  S.bossT -= dt; if (S.bossT <= 0) { S.atk = pick(['leap', 'fan']); S.tele = b.rage ? .55 : .8; b.holdAI = true; b.setLabel(S.atk === 'leap' ? 'SPRUNG!' : 'KLINGEN!'); E('sfx', 'beep', b.x); }
 }
 function drawBossBar() {
-  const b = G.cfg && G.cfg.boss && fighters[1]; if (!b) return; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(340, 22, 600, 22); ctx.fillStyle = b.rage ? '#ff3b30' : '#c22'; ctx.fillRect(343, 25, 594 * clamp(b.hp / b.maxHp, 0, 1), 16);
-  text(b.name + (b.rage ? '  ·  WUTANFALL' : ''), 640, 39, `600 14px ${FONT}`, '#fff', 'center');
+  if (!G.cfg || !G.cfg.stage || !G.st) return; const S = G.st, L = WORLD1[S.lv], b = fighters.find(f => f.boss && !f.dead); worldTx(ctx);
+  if (S.gate && !S.open) { const t = Math.sin(G.time * 8) * .25 + .75; ctx.strokeStyle = `rgba(255,70,60,${t})`; ctx.lineWidth = 5; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(1500 + i * 18, 0); ctx.lineTo(1500 + i * 18, 900); ctx.stroke(); } }
+  if (S.open && !stageSec().boss) { const y = stageSec().map.spawns[0][1] - 120, x = 1500 + Math.sin(G.time * 6) * 14; ctx.fillStyle = '#7fe89a'; ctx.beginPath(); ctx.moveTo(x, y - 26); ctx.lineTo(x + 44, y); ctx.lineTo(x, y + 26); ctx.closePath(); ctx.fill(); }
+  if (b && G.st.tele > 0) { ctx.strokeStyle = '#ff5252'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(b.x, b.y - 50, 74, 0, 7); ctx.stroke(); if (S.atk === 'leap') { const p = fighters[0]; ctx.fillStyle = 'rgba(255,60,50,.25)'; ctx.fillRect(p.x - 300, p.y - 6, 600, 8); } }
+  uiTx(); text(`${L.n}  ·  ${L.secs.length > 1 ? `Abschnitt ${S.sec + 1}/${L.secs.length}  ·  ` : ''}${'♥'.repeat(Math.max(0, S.lives))}`, 640, 24, `600 16px ${FONT}`, '#fff', 'center', 3);
+  if (b) { ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(340, 34, 600, 22); ctx.fillStyle = b.rage ? '#ff3b30' : '#c22'; ctx.fillRect(343, 37, 594 * clamp(b.hp / b.maxHp, 0, 1), 16); text(b.name + (b.rage ? '  ·  WUTANFALL' : ''), 640, 51, `600 14px ${FONT}`, '#fff', 'center'); }
 }
 function campaignEnd(won) { if (won && G.campI >= campCleared()) { profile.stats.camp = G.campI + 1; saveProfile(); } G.campWon = won; }
 function screenCamp() {
-  dim(.62); panel(180, 40, 920, 640); text('WELT 1', 210, 96, `44px ${FONT_D}`, '#fff'); text('Testversion: 10 Level und ein Bossfight', 1070, 90, `600 15px ${FONT}`, UIC.dim, 'right');
+  dim(.62); panel(180, 40, 920, 640); text('WELT 1', 210, 96, `44px ${FONT_D}`, '#fff'); text('10 Level und ein Boss', 1070, 90, `600 15px ${FONT}`, UIC.dim, 'right');
   const open = campCleared();
   WORLD1.forEach((c, i) => {
     const boss = i === 10, x = boss ? 210 : 210 + (i % 2) * 435, y = boss ? 494 : 118 + Math.floor(i / 2) * 74, w = boss ? 860 : 425, off = i > open;
-    if (btn2(x, y, w, 46, `${i + 1 > 10 ? 'BOSS' : i + 1}  ${boss ? c.n.slice(6) : c.n}${i < open ? '  ✓' : ''}`, { size: 18, off, primary: i === open })) { startCamp(i); return; }
+    if (btn2(x, y, w, 46, `${boss ? 'BOSS' : i + 1}  ${boss ? c.n.slice(6) : c.n}${i < open ? '  ✓' : ''}`, { size: 18, off, primary: i === open })) { startCamp(i); return; }
     text(off ? 'Noch gesperrt' : c.d, x + 8, y + 62, `13px ${FONT}`, UIC.dim);
   });
   if (open > 10) text('Welt 1 geschafft!', 640, 590, `30px ${FONT_D}`, UIC.gold, 'center');
   if (btn2(930, 620, 140, 42, 'Zurück', { back: 1, size: 18 }) || nav.back) goScreen('title');
 }
 function campaignResults(y) {
-  const next = G.campI + 1 < WORLD1.length; text(G.campWon ? 'Level geschafft!' : 'Niederlage', 640, y - 16, `600 22px ${FONT}`, G.campWon ? '#7fe89a' : '#ff7a70', 'center');
+  const next = G.campI + 1 < WORLD1.length; text(G.campWon ? 'Level geschafft!' : 'Alle Leben verloren', 640, y - 16, `600 22px ${FONT}`, G.campWon ? '#7fe89a' : '#ff7a70', 'center');
   if (btn2(420, y, 210, 56, G.campWon && next ? 'NÄCHSTES LEVEL' : 'NOCHMAL', { primary: 1, size: 20 })) { startCamp(G.campWon && next ? G.campI + 1 : G.campI); return; }
   if (btn2(650, y, 210, 56, 'WELT 1', { size: 22 })) { G.running = false; startAttract(); goScreen('camp'); }
 }

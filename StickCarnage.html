@@ -24,7 +24,7 @@ canvas{display:block;outline:none;touch-action:none;user-select:none;-webkit-use
 
 </script>
 <script>
-const GAME_VERSION = '2.13.0', GAME_BUILD = 1793608594;
+const GAME_VERSION = '2.13.1', GAME_BUILD = 1793608899;
 'use strict';
 /* =========================================================
    STICK CARNAGE 2
@@ -1475,8 +1475,8 @@ function ik(ax, ay, tx, ty, l1, l2, bend) {
 // Gangzyklus: Standfüße bewegen sich genau mit dem Boden, beim Rennen gibt es kurze Flugphasen.
 function gaitRate(f) { const sp = Math.abs(f.vx); return !f.onGround ? 3 : f.crawl ? sp * .036 : f.duck ? (sp > 25 ? 11 : 0) : sp > 25 ? lerp(9, 19, clamp(sp / RUN, 0, 1)) : 0; }
 function gaitInfo(sp) { const run = clamp(sp / RUN, 0, 1), duty = lerp(.6, .33, run); return { run, duty, A: Math.min(18, sp * duty * Math.PI / lerp(9, 19, run)) }; }
-// Tief in der Hocke darf das Knie nie unter den Boden klappen.
-function legKnee(f, p, x, y, d) { let k = ik(p.hip.x, p.hip.y, x, y, 16, 16, -d); if (f.dk > .25 || k.y > f.y - 2) { const o = ik(p.hip.x, p.hip.y, x, y, 16, 16, d); if (o.y < k.y) k = o; } return k; }
+// In der Hocke zeigen beide Knie nach vorn. Sonst darf das Knie nie unter den Boden klappen.
+function legKnee(f, p, x, y, d) { let k = ik(p.hip.x, p.hip.y, x, y, 16, 16, -d); const o = ik(p.hip.x, p.hip.y, x, y, 16, 16, d); if (f.dk > .25 ? o.x * d > k.x * d : k.y > f.y - 2 && o.y < k.y) k = o; if (f.onGround) k.y = Math.min(k.y, f.y - 3); return k; }
 const relW = (r, d) => d > 0 ? r : Math.PI - r;
 // Gemeinsame Phasen für Körper, Arme und Schwungspur.
 function combatSwing(t) {
@@ -1529,8 +1529,8 @@ function computePose(f, dt) {
       if (f.sliding) { fx = f.x + f.wall * 13; fy = p.hip.y + (i ? 18 : 26); }
       else if (!onG) { const up = f.vy < 0, fl = W && Math.abs(f.vy) > 150 ? 1 : 0; fx = p.hip.x + (i ? -6 : 11) * d + clamp(f.vx * .01, -5, 5) + fl * Math.sin(G.time * 13 + i * 2.6) * 3.5; fy = p.hip.y + (up ? (i ? 19 : 15) : (i ? 27 : 23)) + fl * Math.cos(G.time * 11 + i * 2) * 2.5; }
       else {
-        fx = f.x + sgn * (9 + f.dk * 7 + Math.abs(action.drive)*5 + Math.max(0,action.recoil)*3 + (W ? Math.max(0, W.sq) * .6 : 0)) * d; fy = f.y;
-        if (f.duck && walk) { fx += Math.sin(ph) * 5 * mv; fy -= Math.max(0, Math.cos(ph)) * 2; } // Geduckt nur kurze Trippelschritte
+        fx = f.x + sgn * (9 - f.dk * 3 + Math.abs(action.drive)*5 + Math.max(0,action.recoil)*3 + (W ? Math.max(0, W.sq) * .6 : 0)) * d; fy = f.y;
+        if (f.duck && walk) { fx += Math.sin(ph) * 3.5 * mv; fy -= Math.max(0, Math.cos(ph)) * 1.5; } // Geduckt nur kurze Trippelschritte
         if (wk > .01) {
           const u = ((ph / (Math.PI * 2)) % 1 + 1) % 1, A = G0.A * (st ? .6 : 1); let wx, wy = f.y;
           if (u < G0.duty) wx = A * (1 - 2 * u / G0.duty);

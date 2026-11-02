@@ -24,7 +24,7 @@ canvas{display:block;outline:none;touch-action:none;user-select:none;-webkit-use
 
 </script>
 <script>
-const GAME_VERSION = '3.6.0', GAME_BUILD = 1793616360;
+const GAME_VERSION = '3.7.0', GAME_BUILD = 1793617075;
 'use strict';
 /* =========================================================
    STICK CARNAGE 2
@@ -1253,7 +1253,7 @@ const EV = {
   spark: (x, y, vx, vy, n) => { for (let i = 0; i < n; i++) spawnP({ x, y, vx: vx * .2 + rand(-240, 240), vy: vy * .2 + rand(-240, 140), life: rand(.1, .32), size: 1.6, col: '#ffe08a', grav: .8, add: true }); },
   puff: (x, y, n, dx) => { for (let i = 0; i < n; i++) { const s = dx ? -dx * rand(.3, 1) : Math.random() < .5 ? -1 : 1; spawnP({ x: x + rand(-8, 8), y: y - rand(0, 4), vx: s * rand(30, 170), vy: rand(-46, -6), life: rand(.32, .55), size: rand(5, 9), col: 'rgba(225,220,210,.55)', grav: 0, drag: 4, grow: 22 }); } },
   dust: (x, y, n) => { for (let i = 0; i < n; i++) spawnP({ x: x + rand(-10, 10), y, vx: rand(-110, 110), vy: rand(-90, -10), life: .4, size: rand(3, 6), col: 'rgba(200,195,185,.4)', grav: .15, drag: 3, grow: 12 }); },
-  float: (x, y, t, c) => floats.push({ x, y, t: 0, text: t, col: c || '#fff' }),
+  float: () => {}, // Keine Texte mehr über den Figuren
   feed: (t, c) => { feed.unshift({ text: t, col: c || '#fff', t: 4 }); if (feed.length > 2) feed.length = 2; },
   flash: (x, y, r, c, d) => flashes.push({ x, y, r, col: c, t: 0, max: d }),
   ring: (x, y, r, c, d) => rings.push({ x, y, r, col: c, t: 0, max: d }),
@@ -2171,7 +2171,7 @@ function spawnCrate() {
   if (items.length >= (G.cfg.rule === 6 ? 16 : 6)) return; const c = level.plats.filter(p => !p.invisible && !p.nocrate && !p.move && p.w >= 110); if (!c.length) return;
   const p = pick(c), x = rand(p.px + 25, p.px + p.w - 25);
   if (G.cfg.rule !== 7 && !G.suddenDeath && G.roundT > 12 && Math.random() < .32 && items.filter(i => i.heal).length < 2) { const r = Math.random(); items.push({ id: itemId++, x, y: -40, vx: 0, vy: 190, heal: r < .58 ? 'bandage' : r < .9 ? 'medkit' : 'serum', onG: false, angle: 0, spin: 0 }); return; }
-  items.push({ id: itemId++, x, y: -40, vx: 0, vy: 190, crate: true, onG: false, angle: 0, spin: 0 });
+  const k = pick(weaponPool()), boom = WEAPONS[k].proj === 'boomerang', tr = boom ? 0 : rollTier(); items.push({ id: itemId++, x, y: -40, vx: 0, vy: 200, weapon: k, tier: tr, ammo: boom ? 1 : magOf(k, tr), res: resOf(k, tr), onG: false, angle: 0, spin: rand(-5, 5) }); // Waffen fallen direkt
 }
 function needsHeal(f, k) { const L = f.limbs; return f.hp < f.maxHp - 1 || f.burn > 0 || f.jo !== 0 || (k !== 'bandage' && LIMB_KEYS.some(l => L[l].s === 1)) || (k === 'serum' && LIMB_KEYS.some(l => L[l].s === 2)); }
 function applyHeal(f, k) {

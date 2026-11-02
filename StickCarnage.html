@@ -24,7 +24,7 @@ canvas{display:block;outline:none;touch-action:none;user-select:none;-webkit-use
 
 </script>
 <script>
-const GAME_VERSION = '2.14.0', GAME_BUILD = 1793609380;
+const GAME_VERSION = '2.14.1', GAME_BUILD = 1793609724;
 'use strict';
 /* =========================================================
    STICK CARNAGE 2
@@ -3492,16 +3492,16 @@ const THEMES = { pit: ['#7c7a86', 'dust', '#fff0d0'], canyon: ['#5c6c96', 'snow'
 const ENEMY = { g: { n: 'Schläger', w: 'fists', hp: 45 }, k: { n: 'Klinge', w: 'katana', hp: 60 }, p: { n: 'Schütze', w: 'pistol', hp: 50 }, s: { n: 'Schrotter', w: 'shotgun', hp: 90 }, b: { n: 'Bomber', w: 'grenade', hp: 60 }, h: { n: 'Koloss', w: 'hammer', hp: 150 }, B: { n: 'Der Schlächter', w: 'chainsaw', hp: 800 } };
 // Abschnitt: [Bauteil, Wellen, Gegenstände]
 const WORLD1 = [
-  { n: 'Hinterhof', d: 'Lerne die Wellen und das Tor kennen', theme: 'pit', diff: 0, secs: [['flat', ['g', 'gg']], ['gaps', ['g', 'g']], ['flat', ['gg', 'gp'], [['bandage', 800, 400]]]] },
-  { n: 'Schlucht', d: 'Sprünge über den Abgrund', theme: 'canyon', diff: 0, secs: [['gaps', ['g', 'gp']], ['stairs', ['pp'], [['pistol', 800, 300]]], ['gaps', ['gg', 'gp']]] },
-  { n: 'Verlies', d: 'Keine Waffen, nur Fäuste', theme: 'dungeon', diff: 1, secs: [['spikes', ['g', 'gg']], ['corr', ['ggg'], [['bandage', 500, 600]]], ['spikes', ['gg', 'gg']]] },
-  { n: 'Sägewerk', d: 'Klingen gegen Klingen', theme: 'mill', diff: 1, secs: [['flat', ['k', 'gk'], [['katana', 200, 500]]], ['wall', ['kk', 'gk']], ['flat', ['kk', 'kkg'], [['medkit', 800, 400]]]] },
-  { n: 'Neon-Dächer', d: 'Du startest mit Pistole, sie schießen zurück', theme: 'neon', diff: 1, start: 'pistol', secs: [['gaps', ['p', 'pp']], ['stairs', ['pg', 'pp'], [['uzi', 300, 500]]], ['gaps', ['pp', 'ps']]] },
-  { n: 'Vulkan', d: 'Bewegliche Plattformen über Lava', theme: 'volcano', diff: 1, start: 'pistol', secs: [['lava', ['p', 'pg']], ['lava', ['pp'], [['medkit', 1400, 300]]], ['lava', ['pp', 's']]] },
-  { n: 'Schießstand', d: 'Scharfschützen im Gang', theme: 'pit', diff: 2, start: 'sniper', secs: [['corr', ['pp', 'ps']], ['stairs', ['pp', 's']], ['corr', ['ss', 'pps'], [['medkit', 500, 600]]]] },
-  { n: 'Bunker', d: 'Granaten von allen Seiten', theme: 'dungeon', diff: 2, start: 'grenade', secs: [['flat', ['b', 'bg'], [['grenade', 300, 500]]], ['wall', ['bb', 'bp'], [['grenade', 300, 500]]], ['spikes', ['bb', 'bbp'], [['medkit', 800, 400]]]] },
-  { n: 'Festung', d: 'Kolosse mit 150 Leben', theme: 'mill', diff: 2, start: 'shotgun', secs: [['wall', ['h', 'gp']], ['stairs', ['hp', 'ss'], [['shotgun', 300, 500]]], ['corr', ['hh', 'hps'], [['medkit', 500, 600]]]] },
-  { n: 'Feuerprobe', d: 'Alles auf einmal', theme: 'volcano', diff: 3, start: 'ak', secs: [['lava', ['pp', 'bs']], ['spikes', ['hp', 'kk'], [['ak', 300, 500]]], ['flat', ['hs', 'hkp', 'hhb'], [['serum', 800, 400]]]] },
+  { n: 'Hinterhof', d: 'Lerne die Wellen und das Tor kennen', theme: 'pit', diff: 0, drop: 'pistol', secs: [['flat', ['g', 'gg']], ['gaps', ['g', 'g']], ['flat', ['gg', 'gp'], [['bandage', 800, 400]]]] },
+  { n: 'Schlucht', d: 'Sprünge über den Abgrund', theme: 'canyon', diff: 0, drop: 'pistol', secs: [['gaps', ['g', 'gp']], ['stairs', ['pp'], [['pistol', 800, 300]]], ['gaps', ['gg', 'gp']]] },
+  { n: 'Verlies', d: 'Keine Waffen, nur Fäuste', theme: 'dungeon', diff: 1, fists: 1, secs: [['spikes', ['g', 'gg']], ['corr', ['ggg'], [['bandage', 500, 600]]], ['spikes', ['gg', 'gg']]] },
+  { n: 'Sägewerk', d: 'Klingen gegen Klingen', theme: 'mill', diff: 1, drop: 'katana', secs: [['flat', ['k', 'gk'], [['katana', 200, 500]]], ['wall', ['kk', 'gk']], ['flat', ['kk', 'kkg'], [['medkit', 800, 400]]]] },
+  { n: 'Neon-Dächer', d: 'Du startest mit Pistole, sie schießen zurück', theme: 'neon', diff: 1, start: 'pistol', drop: 'uzi', secs: [['gaps', ['p', 'pp']], ['stairs', ['pg', 'pp'], [['uzi', 300, 500]]], ['gaps', ['pp', 'ps']]] },
+  { n: 'Vulkan', d: 'Bewegliche Plattformen über Lava', theme: 'volcano', diff: 1, start: 'pistol', drop: 'pistol', secs: [['lava', ['p', 'pg']], ['lava', ['pp'], [['medkit', 1400, 300]]], ['lava', ['pp', 's']]] },
+  { n: 'Schießstand', d: 'Scharfschützen im Gang', theme: 'pit', diff: 2, start: 'sniper', drop: 'sniper', secs: [['corr', ['pp', 'ps']], ['stairs', ['pp', 's']], ['corr', ['ss', 'pps'], [['medkit', 500, 600]]]] },
+  { n: 'Bunker', d: 'Granaten von allen Seiten', theme: 'dungeon', diff: 2, start: 'grenade', drop: 'grenade', secs: [['flat', ['b', 'bg'], [['grenade', 300, 500]]], ['wall', ['bb', 'bp'], [['grenade', 300, 500]]], ['spikes', ['bb', 'bbp'], [['medkit', 800, 400]]]] },
+  { n: 'Festung', d: 'Kolosse mit 150 Leben', theme: 'mill', diff: 2, start: 'shotgun', drop: 'shotgun', secs: [['wall', ['h', 'gp']], ['stairs', ['hp', 'ss'], [['shotgun', 300, 500]]], ['corr', ['hh', 'hps'], [['medkit', 500, 600]]]] },
+  { n: 'Feuerprobe', d: 'Alles auf einmal', theme: 'volcano', diff: 3, start: 'ak', drop: 'ak', secs: [['lava', ['pp', 'bs']], ['spikes', ['hp', 'kk'], [['ak', 300, 500]]], ['flat', ['hs', 'hkp', 'hhb'], [['serum', 800, 400]]]] },
   { n: 'BOSS: Der Schlächter', d: 'Sprungangriff, Klingenfächer, Verstärkung', theme: 'volcano', diff: 2, start: 'katana', secs: [['arena', ['B'], [['medkit', 330, 500], ['medkit', 1270, 500]]]] },
 ];
 WORLD1.forEach((l, i) => l.secs.forEach((s, k) => { const b = SEC[s[0]], t = THEMES[l.theme]; s.map = { id: 9000 + i * 10 + k, name: l.n, theme: l.theme, ambient: t[0], weather: t[1], plats: b.plats, props: b.props, hazards: b.hazards || [], spawns: [[80, b.plats[0].y]], lights: [[800, 120, 900, t[2], .85], [1300, 300, 420, t[2], .6]] }; s.sp = b.sp; s.boss = b.boss; }));
@@ -3511,15 +3511,15 @@ function startCamp(i) {
   playFight({ diff: l.diff, level: l.secs[0].map, rounds: 1, rule: 0, noCrates: 1, stage: 1 }, [{ name: profile.name || 'Du', device: 'kbm', look: profile.look }], true);
 }
 const stageSec = () => WORLD1[G.st.lv].secs[G.st.sec];
-function giveWeapon(f, k, spare) { const w = WEAPONS[k]; f.weapon = k; f.tier = 0; f.ammo = k === 'fists' ? 0 : w.cat === 'melee' ? 0 : magOf(k, 0); f.res = spare ? 99 : resOf(k, 0); }
+function giveWeapon(f, k, spare) { const w = WEAPONS[k]; f.weapon = k; f.tier = 0; f.ammo = k === 'fists' ? 0 : w.cat === 'melee' ? 0 : magOf(k, 0); f.res = spare ? 20 : resOf(k, 0); }
 // Tor und Gegenstände gehören zum Abschnitt, Waffe und Leben nimmt der Spieler mit.
 function sectionSetup() {
-  const s = stageSec(), S = G.st; S.wave = 0; S.wait = 1; S.age = 0; S.open = !!s.boss; S.gate = null;
+  const s = stageSec(), S = G.st; S.wave = 0; S.wait = 1; S.age = 0; S.open = !!s.boss; S.gate = null; S.fallen = 0; S.pending = false;
   if (!s.boss) { S.gate = { x: 1500, y: -900, w: 40, h: 1800, px: 1500, py: -900, dx: 0, dy: 0, invisible: 1 }; level.plats.push(S.gate); rebuildSolids(); }
   for (const [k, x, y] of s[2] || []) items.push(HEAL_DEF[k] ? { id: itemId++, x, y, vx: 0, vy: 0, heal: k, onG: false, angle: 0, spin: 0 } : { id: itemId++, x, y, vx: 0, vy: 0, weapon: k, tier: 0, ammo: magOf(k, 0), res: resOf(k, 0), onG: false, angle: 0, spin: 0 });
 }
 function enterSection(i) {
-  const S = G.st, p = fighters[0]; S.sec = i; fighters.length = 1; const m = stageSec().map; loadLevel(m); clearWorld(); p.x = p.netX = 80; p.y = p.netY = m.spawns[0][1] - 1; p.lx = p.x; p.ly = p.y; p.vx = p.vy = p.kx = 0; p.vis = null;
+  const S = G.st, p = fighters[0]; if (i > S.sec) healPlayer(p, 25); S.sec = i; fighters.length = 1; const m = stageSec().map; loadLevel(m); clearWorld(); p.x = p.netX = 80; p.y = p.netY = m.spawns[0][1] - 1; p.lx = p.x; p.ly = p.y; p.vx = p.vy = p.kx = 0; p.vis = null;
   S.entry = { w: p.weapon, a: p.ammo, r: p.res }; sectionSetup(); UI.fade = 1;
 }
 function campaignRound() {
@@ -3534,21 +3534,36 @@ function spawnEnemy(c) {
   f.team = 1; fighters.push(f); f.reset(q[0], q[1] - 1); f.maxHp = f.hp = T.hp; giveWeapon(f, T.w, true); computePose(f); E('ring', f.x, f.y - 36, 50, '#ff5252', .3);
   if (c === 'B') { f.boss = true; f.rage = false; S.bossT = 3; S.calls = 0; f.height = 90; } return f;
 }
+const KILL_HEAL = 8;
+function healPlayer(p, n) { const h = Math.min(n, p.maxHp - p.hp); if (h <= 0 || p.dead) return; p.hp += h; E('float', p.x, p.y - 92, '+' + Math.ceil(h), '#7fe89a'); }
+// Nachschub landet neben dem Spieler auf sicherem Boden, nie in Gruben oder auf Plattformen über Lava.
+function supplyDrop(k, p) {
+  let b = null, bd = 1e9; const x0 = p.x + rand(-90, 90);
+  for (const q of level.plats) { if (q.invisible || q.move || q.nocrate || q.w < 60 || q.py < 100) continue; const x = clamp(x0, q.px + 20, q.px + q.w - 20), d = Math.abs(x - p.x) + Math.abs(q.py - p.y); if (d < bd && !level.hazards.some(h => h.type === 'spikes' && x > h.x && x < h.x + h.w && h.y < q.py + 40) ) { bd = d; b = { x, y: q.py - 90 }; } }
+  if (!b) b = { x: p.x, y: p.y - 90 }; items.push(HEAL_DEF[k] ? { id: itemId++, x: b.x, y: b.y, vx: 0, vy: 0, heal: k, onG: false, angle: 0, spin: 0 } : { id: itemId++, x: b.x, y: b.y, vx: 0, vy: 0, weapon: k, tier: 0, ammo: magOf(k, 0), res: resOf(k, 0), onG: false, angle: 0, spin: 0 }); E('ring', b.x, b.y, 44, '#7fe89a', .3);
+}
+// Nach jeder Welle: Heilung, und eine Waffe falls man leer dasteht.
+function waveSupply(p) {
+  const L = WORLD1[G.st.lv], w = WEAPONS[p.weapon]; supplyDrop(p.hp < p.maxHp * .55 ? 'medkit' : 'bandage', p);
+  if (!L.fists && L.drop && (p.weapon === 'fists' || (w.cat !== 'melee' && p.ammo <= 0 && p.res <= 0))) supplyDrop(L.drop, p); E('feed', 'Nachschub!', '#7fe89a');
+}
 function stageFinish(won) { G.stageWon = won; G.phase = 'end'; G.timer = 2.4; G.winner = won ? fighters[0] : null; G.matchWinner = fighters[0]; G.ts = .4; G.slow = 1; }
 function campaignStep(dt) {
   if (!G.cfg.stage) return; G.roundT = Math.min(G.roundT, 30); const S = G.st, p = fighters[0], s = stageSec(), foes = fighters.slice(1).filter(f => !f.dead);
   const boss = fighters.find(f => f.boss); if (boss && boss.dead) { stageFinish(true); return; }
   if (p.dead) { S.dead += dt; if (S.dead > 1.6) { S.dead = 0; S.lives--; if (S.lives <= 0) stageFinish(false); else respawnPlayer(); } return; }
+  const fallen = fighters.slice(1).filter(f => f.dead).length; if (fallen > S.fallen) { healPlayer(p, (fallen - S.fallen) * KILL_HEAL); S.fallen = fallen; }
   if (boss) bossStep(boss, p, dt);
   if (foes.length) { S.age += dt; if (S.age > 45 && !boss) for (const f of foes) kill(f, null, 0, -1, 'verschwindet'); return; }
-  if (S.wave < s[1].length) { S.wait -= dt; if (S.wait <= 0) { for (const c of s[1][S.wave]) spawnEnemy(c); S.wave++; S.wait = 1; S.age = 0; if (s[1].length > 1) E('feed', `Welle ${S.wave} von ${s[1].length}`, '#ffd24a'); } return; }
+  if (S.pending) { S.pending = false; waveSupply(p); }
+  if (S.wave < s[1].length) { S.wait -= dt; if (S.wait <= 0) { for (const c of s[1][S.wave]) spawnEnemy(c); S.wave++; S.wait = 1.6; S.age = 0; S.pending = !boss && !s.boss; if (s[1].length > 1) E('feed', `Welle ${S.wave} von ${s[1].length}`, '#ffd24a'); } return; }
   if (!S.open) { S.open = true; level.plats.splice(level.plats.indexOf(S.gate), 1); rebuildSolids(); E('sfx', 'go'); E('feed', 'Tor offen: weiter nach rechts!', '#7fe89a'); }
   if (p.x > 1540 && !s.boss) { if (S.sec + 1 < WORLD1[S.lv].secs.length) enterSection(S.sec + 1); else stageFinish(true); }
 }
 // Der Boss kündigt jeden Angriff an, damit man ausweichen kann.
 function bossStep(b, p, dt) {
   const S = G.st; if (!b.rage && b.hp <= b.maxHp / 2) { b.rage = true; b.m = { ...b.m, speed: b.m.speed * 1.25 }; b.setLabel('WUTANFALL!'); E('shake', 12); E('sfx', 'parry', b.x); }
-  if (S.calls < 2 && b.hp <= b.maxHp * (S.calls ? .33 : .66)) { S.calls++; spawnEnemy('g'); spawnEnemy('g'); E('feed', 'Der Schlächter ruft Verstärkung!', '#ff7a70'); }
+  if (S.calls < 2 && b.hp <= b.maxHp * (S.calls ? .33 : .66)) { S.calls++; spawnEnemy('g'); spawnEnemy('g'); supplyDrop('medkit', p); E('feed', 'Der Schlächter ruft Verstärkung!', '#ff7a70'); }
   if (b.leap) { if (b.onGround && S.air) { b.leap = false; S.air = false; b.holdAI = false; S.bossT = b.rage ? 2.2 : 3.4; E('shake', 16); E('sfx', 'boom', b.x); E('ring', b.x, b.y - 8, 300, '#ff5252', .4); E('dust', b.x, b.y, 24); if (Math.abs(p.x - b.x) < 300 && p.onGround) hitFighter(p, 'torso', 32, WEAPONS.hammer, Math.sign(p.x - b.x) || 1, -.6, 900, b); } else if (!b.onGround) { S.air = true; b.vx = S.lvx; } return; }
   if (S.tele > 0) { S.tele -= dt; if (S.tele > 0) return; const dx = p.x - b.x; if (S.atk === 'leap') { b.leap = true; S.air = false; S.lvx = b.vx = clamp(dx, -900, 900); b.vy = -1050; b.onGround = false; b.ground = null; } else { b.holdAI = false; S.bossT = b.rage ? 2 : 3; const a0 = Math.atan2(p.y - 40 - b.y + 60, dx); for (let i = -3; i <= 3; i++) { const a = a0 + i * .16; shots.push({ id: shotId++, k: 'shuriken', x: b.x, y: b.y - 60, vx: Math.cos(a) * 760, vy: Math.sin(a) * 760, dmg: 16, owner: b, w: 'shuriken', life: 4, fuse: 0, hit: new Set(), grav: GRAV * .15, ang: a, spin: 1 }); } E('sfx', 'throw', b.x); } return; }
   S.bossT -= dt; if (S.bossT <= 0) { S.atk = pick(['leap', 'fan']); S.tele = b.rage ? .55 : .8; b.holdAI = true; b.setLabel(S.atk === 'leap' ? 'SPRUNG!' : 'KLINGEN!'); E('sfx', 'beep', b.x); }

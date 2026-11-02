@@ -24,7 +24,7 @@ canvas{display:block;outline:none;touch-action:none;user-select:none;-webkit-use
 
 </script>
 <script>
-const GAME_VERSION = '2.14.1', GAME_BUILD = 1793609724;
+const GAME_VERSION = '2.15.0', GAME_BUILD = 1793613001;
 'use strict';
 /* =========================================================
    STICK CARNAGE 2
@@ -1594,7 +1594,7 @@ function limbSegments(f) {
     if (p['elbow' + s]) o.push({ limb: 'arm' + s, x1: p.shoulder.x, y1: p.shoulder.y, x2: p['elbow' + s].x, y2: p['elbow' + s].y, r: 4 }, { limb: 'arm' + s, x1: p['elbow' + s].x, y1: p['elbow' + s].y, x2: p['hand' + s].x, y2: p['hand' + s].y, r: 4 });
     if (p['knee' + s]) o.push({ limb: 'leg' + s, x1: p.hip.x, y1: p.hip.y, x2: p['knee' + s].x, y2: p['knee' + s].y, r: 4.5 }, { limb: 'leg' + s, x1: p['knee' + s].x, y1: p['knee' + s].y, x2: p['foot' + s].x, y2: p['foot' + s].y, r: 4.5 });
   }
-  if (f.boss) for (const s of o) { s.x1 = f.x + (s.x1 - f.x) * 1.35; s.y1 = f.y + (s.y1 - f.y) * 1.35; s.x2 = f.x + (s.x2 - f.x) * 1.35; s.y2 = f.y + (s.y2 - f.y) * 1.35; s.r *= 1.35; }
+  if (f.size) for (const s of o) { s.x1 = f.x + (s.x1 - f.x) * f.size; s.y1 = f.y + (s.y1 - f.y) * f.size; s.x2 = f.x + (s.x2 - f.x) * f.size; s.y2 = f.y + (s.y2 - f.y) * f.size; s.r *= f.size; }
   return o;
 }
 function stumpPos(f, l) { const p = f.pose; return l.startsWith('arm') ? { x: p.shoulder.x, y: p.shoulder.y + 3 } : { x: p.hip.x, y: p.hip.y + 4 }; }
@@ -1943,7 +1943,7 @@ function hitFighter(t, limb, dmg, src, dx, dy, kb, by, hx, hy) {
 }
 // Klingen trennen den Kopf ab, alles andere lässt ihn zerplatzen.
 function headKill(f, src, dx, dy, by) {
-  if (f.boss) return;
+  if (f.boss || (by && by.boss)) return; // Bosskampf: kein Sofort-Tod in beide Richtungen
   if (src.type === 'slash') { sever(f, 'head', dx, dy, by); return; }
   const h = f.pose ? f.pose.head : { x: f.x, y: f.y - 70 }, L = f.limbs.head; L.s = 2; L.hp = 0; f.lost++; f.jo &= ~limbBones('head'); if (by && by !== f) track(by, 'sever'); track(f, 'lostLimbs');
   E('gib', h.x, h.y, dx, dy, f.slot, 0); E('sfx', 'gib', h.x); E('shake', 9); E('float', f.x, f.y - 92, 'KOPF ZERPLATZT!', '#ff5252'); kill(f, by, dx, dy, 'enthauptet');
@@ -1979,7 +1979,7 @@ function fracture(f, limb) {
   if (limb === 'head') f.stun = .7; E('debris', f.x, f.y - 34, '#efe9da', 4);
 }
 function sever(f, limb, dx, dy, by) {
-  if (f.boss) return;
+  if (f.boss || (limb === 'head' && by && by.boss)) return;
   const L = f.limbs[limb], frac = L.s === 1; L.s = 2; L.hp = 0; f.lost++; f.jo &= ~limbBones(limb); if (by && by !== f) track(by, 'sever'); track(f, 'lostLimbs'); if (limb !== 'head') E('unstick', f.slot, limb); if (!f.quiet) { E('sfx', 'sever', f.x); E('shake', 7); }
   const p = f.pose, vx = dx * rand(280, 500) + f.vx * .5, vy = dy * rand(200, 420) - 300;
   if (limb === 'head') {
@@ -2103,7 +2103,7 @@ function climbStep(f, gx, gy) {
   return b;
 }
 function aiInput(f, dt) {
-  const a = f.ai, D = DIFF[G.cfg ? G.cfg.diff : 1], r = { mx: 0, jump: false, down: false, fire: false, block: false, pick: false, reload: false, aim: f.aim }; if (f.holdAI) return r;
+  const a = f.ai, D = DIFF[f.aiDiff !== undefined ? f.aiDiff : G.cfg ? G.cfg.diff : 1], r = { mx: 0, jump: false, down: false, fire: false, block: false, pick: false, reload: false, aim: f.aim }; if (f.holdAI) return r;
   a.t -= dt; a.jumpT -= dt; if (a.hold > 0) { a.hold -= dt; r.jump = true; }
   // Unerreichbare Gegenstände werden zehn Sekunden gemieden, sonst pendelt der Bot zwischen zwei Zielen.
   a.bans = a.bans || []; const banned = it => a.bans.some(b => b.it === it && b.until > G.time), ban = it => { if (!it) return; a.bans.push({ it, until: G.time + 10 }); if (a.bans.length > 5) a.bans.shift(); };
@@ -2242,7 +2242,7 @@ function onRel(m) {
   if (m.t === 'lobby') { clearTimeout(NET.timer); NET.connecting = false; NET.hostBuild = num(m.build, 0, 1e11); if (!G.running || G.attract) NET.meSlot = num(m.you, 0, 3); NET.lobby = (Array.isArray(m.players) ? m.players : []).map(n => ({ name: cleanName(n) || 'Spieler' })); NET.status = 'Verbunden. Warte auf den Start durch den Host ...'; if ((!G.running || G.attract) && G.screen !== 'lobbyC') { stopSim(); goScreen('lobbyC'); } }
   else if (m.t === 'full') netFail('Der Raum ist voll oder das Spiel läuft schon.');
   else if (m.t === 'bye') netFail('Der Host hat das Spiel beendet.');
-  else if (m.t === 'match') { if (!Array.isArray(m.names) || !m.cfg) return; G.cfg = m.cfg; G.attract = false; G.running = true; G.paused = false; G.overlay = false; G.chatOpen = false; G.autoPad = true; NET.meSlot = num(m.you, 0, 3); NET.lastQ = 0; fighters = m.names.slice(0, 4).map((n, i) => new Fighter(i, cleanName(n) || 'Spieler', i === NET.meSlot ? 'kbm' : 'remote', m.looks && m.looks[i])); goScreen('game'); }
+  else if (m.t === 'match') { if (!Array.isArray(m.names) || !m.cfg) return; G.cfg = m.cfg; G.attract = false; G.running = true; G.paused = false; G.overlay = false; G.chatOpen = false; G.autoPad = true; NET.meSlot = num(m.you, 0, 3); NET.lastQ = 0; fighters = m.names.slice(0, 4).map((n, i) => new Fighter(i, cleanName(n) || 'Spieler', i === NET.meSlot ? 'kbm' : 'remote', m.looks && m.looks[i])); uniqueColors(fighters); goScreen('game'); }
   else if (m.t === 'round') clientRound(m);
   else if (m.t === 'tr') addStat(m.k, m.n, m.u);
   else if (m.t === 'chat') chatAdd(m.n, m.x, m.c);
@@ -2329,7 +2329,14 @@ function remoteRaw(f) {
 
 // ---------- Runden & Match ----------
 function clearWorld() { shots = []; blood = []; gibs = []; sparks = []; ragdolls = []; items = []; fires = []; flashes = []; beams = []; drips = []; floats = []; feed = []; rings = []; blasts = []; mflashes = []; timers.length = 0; sctx.clearRect(0, 0, 1600, 900); }
-function startMatch(cfg, players) { G.cfg = cfg; fighters = players.map((p, i) => new Fighter(i, p.name, p.device, p.look)); G.round = 0; G.mapBag = []; G.lastLevel = -1; G.running = true; G.paused = false; G.overlay = false; G.matchWinner = null; G.results = null; startRound(); }
+// Jeder Charakter bekommt im Spiel eine eigene, klar unterscheidbare Farbe.
+const hexRgb = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)), colorsClose = (a, b) => { const p = hexRgb(a), q = hexRgb(b); return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 95; };
+function freeColor(f, others) {
+  if (!others.some(o => colorsClose(o.color, f.color))) return; const c = [...PCOL, ...COS.color.items.map(i => i.v).filter(Boolean)].find(v => !others.some(o => colorsClose(o.color, v)));
+  if (c) f.color = c;
+}
+function uniqueColors(list) { list.forEach((f, i) => freeColor(f, list.slice(0, i))); }
+function startMatch(cfg, players) { G.cfg = cfg; fighters = players.map((p, i) => new Fighter(i, p.name, p.device, p.look)); uniqueColors(fighters); G.round = 0; G.mapBag = []; G.lastLevel = -1; G.running = true; G.paused = false; G.overlay = false; G.matchWinner = null; G.results = null; startRound(); }
 // Wählt die Spawnpunkte mit dem größten Mindestabstand, damit niemand ineinander oder übereinander startet
 function pickSpawns(n) {
   const S = level.spawns; if (n <= 1 || n >= S.length) return shuffle(S.slice());
@@ -2690,7 +2697,7 @@ function smoothPose(f, p) {
 function ragShift(r, on) { if (on) { const k = ((G.stepN % 2) + (G.alpha === undefined ? 1 : G.alpha)) / 2; for (const p of r.pts) { p.dx0 = p.x; p.dy0 = p.y; if (!p.pin) { p.x += clamp(p.x - p.ox, -14, 14) * k; p.y += clamp(p.y - p.oy, -14, 14) * k; } } } else for (const p of r.pts) { p.x = p.dx0; p.y = p.dy0; } }
 function drawFighter(f) {
   if (!f.pose) return; const p = smoothPose(f, f.pose), a0 = G.alpha === undefined ? 1 : G.alpha, ix = f.device === 'remote' || Math.abs(f.lx - f.x) > 60 || Math.abs(f.ly - f.y) > 60 ? 0 : (f.lx - f.x) * (1 - a0), iy = f.device === 'remote' || Math.abs(f.lx - f.x) > 60 || Math.abs(f.ly - f.y) > 60 ? 0 : (f.ly - f.y) * (1 - a0);
-  ctx.save(); ctx.translate((f.rx || 0) + ix, (f.ry || 0) + iy); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; if (f.boss) { ctx.translate(f.x, f.y); ctx.scale(1.35, 1.35); ctx.translate(-f.x, -f.y); } const d = f.facing, col = f.frozen > 0 ? '#bfe8ff' : f.flash > 0 ? '#fff' : f.color, S = [];
+  ctx.save(); ctx.translate((f.rx || 0) + ix, (f.ry || 0) + iy); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; if (f.size) { ctx.translate(f.x, f.y); ctx.scale(f.size, f.size); ctx.translate(-f.x, -f.y); } const d = f.facing, col = f.frozen > 0 ? '#bfe8ff' : f.flash > 0 ? '#fff' : f.color, S = [];
   if (f.onGround) { ctx.fillStyle = 'rgba(0,0,0,.34)'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 1, 19, 4.5, 0, 0, 7); ctx.fill(); }
   const stump = [], bones = [];
   const limb = (a, b, c, st, rx, ry, w) => {
@@ -3489,20 +3496,29 @@ const SEC = {
   arena: { plats: [P(0, 760, 1600, 140), P(200, 580, 260, 18, OW), P(1140, 580, 260, 18, OW), P(640, 440, 320, 18, OW)], props: [], sp: [[1200, 760]], boss: 1 },
 };
 const THEMES = { pit: ['#7c7a86', 'dust', '#fff0d0'], canyon: ['#5c6c96', 'snow', '#a8c0ff'], dungeon: ['#604a48', 'dust', '#ff9a3c'], volcano: ['#6e4a3a', 'embers', '#ff7a20'], neon: ['#4c4a78', 'rain', '#22e6ff'], mill: ['#6a665a', 'dust', '#ffb060'] };
-const ENEMY = { g: { n: 'Schläger', w: 'fists', hp: 45 }, k: { n: 'Klinge', w: 'katana', hp: 60 }, p: { n: 'Schütze', w: 'pistol', hp: 50 }, s: { n: 'Schrotter', w: 'shotgun', hp: 90 }, b: { n: 'Bomber', w: 'grenade', hp: 60 }, h: { n: 'Koloss', w: 'hammer', hp: 150 }, B: { n: 'Der Schlächter', w: 'chainsaw', hp: 800 } };
+// Jeder Gegnertyp hat eigenes Aussehen und eigene Namen.
+const ENEMY = {
+  g: { names: ['Bruno', 'Kalle', 'Dolf', 'Rudi', 'Harri'], t: 'Schläger', w: 'fists', hp: 45, look: { color: 'ash', hat: 'cap', face: 'angry', back: 'none', blood: 'red' } },
+  k: { names: ['Kage', 'Ren', 'Shiro', 'Yuki'], t: 'Klinge', w: 'katana', hp: 60, look: { color: 'crimson', hat: 'headband', face: 'eyepatch', back: 'scarf', blood: 'red' } },
+  p: { names: ['Lefty', 'Rico', 'Vito', 'Sal'], t: 'Schütze', w: 'pistol', hp: 50, look: { color: 'teal', hat: 'tophat', face: 'shades', back: 'none', blood: 'red' } },
+  s: { names: ['Buck', 'Earl', 'Hank'], t: 'Schrotter', w: 'shotgun', hp: 90, look: { color: 'orange', hat: 'cowboy', face: 'angry', back: 'none', blood: 'red' } },
+  b: { names: ['Fritz', 'Zünder', 'Knall-Ede'], t: 'Bomber', w: 'grenade', hp: 60, look: { color: 'purple', hat: 'hardhat', face: 'clown', back: 'none', blood: 'red' } },
+  h: { names: ['Goliath', 'Ogar', 'Brocken'], t: 'Koloss', w: 'hammer', hp: 150, size: 1.18, look: { color: 'shadow', hat: 'viking', face: 'skull', back: 'shield', blood: 'black' } },
+  B: { names: ['Der Schlächter'], t: 'Boss', w: 'hammer', hp: 350, size: 1.35, look: { color: 'shadow', hat: 'horns', face: 'skull', back: 'cape', blood: 'black' } },
+};
 // Abschnitt: [Bauteil, Wellen, Gegenstände]
 const WORLD1 = [
-  { n: 'Hinterhof', d: 'Lerne die Wellen und das Tor kennen', theme: 'pit', diff: 0, drop: 'pistol', secs: [['flat', ['g', 'gg']], ['gaps', ['g', 'g']], ['flat', ['gg', 'gp'], [['bandage', 800, 400]]]] },
-  { n: 'Schlucht', d: 'Sprünge über den Abgrund', theme: 'canyon', diff: 0, drop: 'pistol', secs: [['gaps', ['g', 'gp']], ['stairs', ['pp'], [['pistol', 800, 300]]], ['gaps', ['gg', 'gp']]] },
-  { n: 'Verlies', d: 'Keine Waffen, nur Fäuste', theme: 'dungeon', diff: 1, fists: 1, secs: [['spikes', ['g', 'gg']], ['corr', ['ggg'], [['bandage', 500, 600]]], ['spikes', ['gg', 'gg']]] },
-  { n: 'Sägewerk', d: 'Klingen gegen Klingen', theme: 'mill', diff: 1, drop: 'katana', secs: [['flat', ['k', 'gk'], [['katana', 200, 500]]], ['wall', ['kk', 'gk']], ['flat', ['kk', 'kkg'], [['medkit', 800, 400]]]] },
-  { n: 'Neon-Dächer', d: 'Du startest mit Pistole, sie schießen zurück', theme: 'neon', diff: 1, start: 'pistol', drop: 'uzi', secs: [['gaps', ['p', 'pp']], ['stairs', ['pg', 'pp'], [['uzi', 300, 500]]], ['gaps', ['pp', 'ps']]] },
-  { n: 'Vulkan', d: 'Bewegliche Plattformen über Lava', theme: 'volcano', diff: 1, start: 'pistol', drop: 'pistol', secs: [['lava', ['p', 'pg']], ['lava', ['pp'], [['medkit', 1400, 300]]], ['lava', ['pp', 's']]] },
-  { n: 'Schießstand', d: 'Scharfschützen im Gang', theme: 'pit', diff: 2, start: 'sniper', drop: 'sniper', secs: [['corr', ['pp', 'ps']], ['stairs', ['pp', 's']], ['corr', ['ss', 'pps'], [['medkit', 500, 600]]]] },
-  { n: 'Bunker', d: 'Granaten von allen Seiten', theme: 'dungeon', diff: 2, start: 'grenade', drop: 'grenade', secs: [['flat', ['b', 'bg'], [['grenade', 300, 500]]], ['wall', ['bb', 'bp'], [['grenade', 300, 500]]], ['spikes', ['bb', 'bbp'], [['medkit', 800, 400]]]] },
-  { n: 'Festung', d: 'Kolosse mit 150 Leben', theme: 'mill', diff: 2, start: 'shotgun', drop: 'shotgun', secs: [['wall', ['h', 'gp']], ['stairs', ['hp', 'ss'], [['shotgun', 300, 500]]], ['corr', ['hh', 'hps'], [['medkit', 500, 600]]]] },
-  { n: 'Feuerprobe', d: 'Alles auf einmal', theme: 'volcano', diff: 3, start: 'ak', drop: 'ak', secs: [['lava', ['pp', 'bs']], ['spikes', ['hp', 'kk'], [['ak', 300, 500]]], ['flat', ['hs', 'hkp', 'hhb'], [['serum', 800, 400]]]] },
-  { n: 'BOSS: Der Schlächter', d: 'Sprungangriff, Klingenfächer, Verstärkung', theme: 'volcano', diff: 2, start: 'katana', secs: [['arena', ['B'], [['medkit', 330, 500], ['medkit', 1270, 500]]]] },
+  { n: 'Hinterhof', d: 'Lerne die Wellen und das Tor kennen', theme: 'pit', diff: 0, ed: 0.4, drop: 'pistol', secs: [['flat', ['g', 'g']], ['gaps', ['g']], ['flat', ['gg']]] },
+  { n: 'Schlucht', d: 'Sprünge über den Abgrund', theme: 'canyon', diff: 0, ed: 0.4, drop: 'pistol', secs: [['gaps', ['g'], [['pistol', 150, 500]]], ['stairs', ['p']], ['gaps', ['gp']]] },
+  { n: 'Verlies', d: 'Keine Waffen, nur Fäuste', theme: 'dungeon', diff: 0, ed: 0.45, fists: 1, secs: [['spikes', ['g', 'gg']], ['corr', ['ggg']], ['spikes', ['gg', 'gg']]] },
+  { n: 'Sägewerk', d: 'Klingen gegen Klingen', theme: 'mill', diff: 0, ed: 0.5, drop: 'katana', secs: [['flat', ['k'], [['katana', 200, 500]]], ['wall', ['k', 'g']], ['flat', ['kg']]] },
+  { n: 'Neon-Dächer', d: 'Du startest mit Pistole, sie schießen zurück', theme: 'neon', diff: 1, ed: .4, start: 'pistol', drop: 'uzi', secs: [['gaps', ['p']], ['stairs', ['pg']], ['gaps', ['pp']]] },
+  { n: 'Vulkan', d: 'Bewegliche Plattformen über Lava', theme: 'volcano', diff: 1, ed: 0.55, start: 'pistol', drop: 'pistol', secs: [['lava', ['p']], ['lava', ['p']], ['lava', ['pg']]] },
+  { n: 'Schießstand', d: 'Scharfschützen im Gang', theme: 'pit', diff: 1, ed: 0.6, start: 'sniper', drop: 'sniper', secs: [['corr', ['p']], ['stairs', ['p', 's']], ['corr', ['ps']]] },
+  { n: 'Bunker', d: 'Granaten von allen Seiten', theme: 'dungeon', diff: 1, ed: 0.6, start: 'grenade', drop: 'grenade', secs: [['flat', ['b']], ['wall', ['bg']], ['spikes', ['bp']]] },
+  { n: 'Festung', d: 'Kolosse mit 150 Leben', theme: 'mill', diff: 1, ed: 0.65, start: 'shotgun', drop: 'shotgun', secs: [['wall', ['h']], ['stairs', ['hp']], ['corr', ['hp']]] },
+  { n: 'Feuerprobe', help: 2, d: 'Alles auf einmal', theme: 'volcano', diff: 1, ed: 0.55, start: 'ak', drop: 'ak', secs: [['lava', ['pp']], ['spikes', ['hp']], ['flat', ['hp']]] },
+  { n: 'BOSS: Der Schlächter', help: 2, d: 'Sprungangriff, Klingenfächer, Verstärkung', theme: 'volcano', diff: 1, ed: .45, start: 'katana', secs: [['arena', ['B'], [['medkit', 330, 500], ['medkit', 1270, 500], ['shotgun', 800, 300]]]] },
 ];
 WORLD1.forEach((l, i) => l.secs.forEach((s, k) => { const b = SEC[s[0]], t = THEMES[l.theme]; s.map = { id: 9000 + i * 10 + k, name: l.n, theme: l.theme, ambient: t[0], weather: t[1], plats: b.plats, props: b.props, hazards: b.hazards || [], spawns: [[80, b.plats[0].y]], lights: [[800, 120, 900, t[2], .85], [1300, 300, 420, t[2], .6]] }; s.sp = b.sp; s.boss = b.boss; }));
 const campCleared = () => profile.stats.camp || 0;
@@ -3514,27 +3530,27 @@ const stageSec = () => WORLD1[G.st.lv].secs[G.st.sec];
 function giveWeapon(f, k, spare) { const w = WEAPONS[k]; f.weapon = k; f.tier = 0; f.ammo = k === 'fists' ? 0 : w.cat === 'melee' ? 0 : magOf(k, 0); f.res = spare ? 20 : resOf(k, 0); }
 // Tor und Gegenstände gehören zum Abschnitt, Waffe und Leben nimmt der Spieler mit.
 function sectionSetup() {
-  const s = stageSec(), S = G.st; S.wave = 0; S.wait = 1; S.age = 0; S.open = !!s.boss; S.gate = null; S.fallen = 0; S.pending = false;
+  const s = stageSec(), S = G.st; S.wave = 0; S.wait = 1; S.age = 0; S.open = !!s.boss; S.gate = null; S.pending = false;
   if (!s.boss) { S.gate = { x: 1500, y: -900, w: 40, h: 1800, px: 1500, py: -900, dx: 0, dy: 0, invisible: 1 }; level.plats.push(S.gate); rebuildSolids(); }
-  for (const [k, x, y] of s[2] || []) items.push(HEAL_DEF[k] ? { id: itemId++, x, y, vx: 0, vy: 0, heal: k, onG: false, angle: 0, spin: 0 } : { id: itemId++, x, y, vx: 0, vy: 0, weapon: k, tier: 0, ammo: magOf(k, 0), res: resOf(k, 0), onG: false, angle: 0, spin: 0 });
+  if (HELP_TEST !== -1) for (const [k, x, y] of s[2] || []) items.push(HEAL_DEF[k] ? { id: itemId++, x, y, vx: 0, vy: 0, heal: k, onG: false, angle: 0, spin: 0 } : { id: itemId++, x, y, vx: 0, vy: 0, weapon: k, tier: 0, ammo: magOf(k, 0), res: resOf(k, 0), onG: false, angle: 0, spin: 0 });
 }
 function enterSection(i) {
-  const S = G.st, p = fighters[0]; if (i > S.sec) healPlayer(p, 25); S.sec = i; fighters.length = 1; const m = stageSec().map; loadLevel(m); clearWorld(); p.x = p.netX = 80; p.y = p.netY = m.spawns[0][1] - 1; p.lx = p.x; p.ly = p.y; p.vx = p.vy = p.kx = 0; p.vis = null;
+  const S = G.st, p = fighters[0]; S.sec = i; fighters.length = 1; const m = stageSec().map; loadLevel(m); clearWorld(); p.x = p.netX = 80; p.y = p.netY = m.spawns[0][1] - 1; p.lx = p.x; p.ly = p.y; p.vx = p.vy = p.kx = 0; p.vis = null;
   S.entry = { w: p.weapon, a: p.ammo, r: p.res }; sectionSetup(); UI.fade = 1;
 }
 function campaignRound() {
   if (!G.cfg.stage) return; const S = G.st, p = fighters[0], st = WORLD1[S.lv].start; S.sec = 0; S.lives = 3; S.dead = 0; if (st) giveWeapon(p, st); S.entry = { w: p.weapon, a: p.ammo, r: p.res }; sectionSetup();
 }
+// Nach einem Tod bleiben besiegte Gegner weg, nur der Spieler kehrt an den Abschnittsanfang zurück.
 function respawnPlayer() {
-  const S = G.st, p = fighters[0], e = S.entry; p.reset(80, stageSec().map.spawns[0][1] - 1); p.weapon = e.w; p.ammo = e.a; p.res = e.r; const a = { ...e }; enterSection(S.sec); S.entry = a; computePose(p);
+  const S = G.st, p = fighters[0], e = S.entry; p.reset(80, stageSec().map.spawns[0][1] - 1); p.weapon = e.w; p.ammo = e.a; p.res = e.r; p.lx = p.x; p.ly = p.y; p.vis = null; computePose(p);
 }
 function spawnEnemy(c) {
   const S = G.st, T = ENEMY[c], sp = stageSec().sp, p = fighters[0], list = sp.filter(q => dist(q[0], q[1], p.x, p.y) > 300), q = pick(list.length ? list : sp), slot = fighters.length;
-  const f = new Fighter(slot, T.n, 'bot', { color: c === 'B' ? 'shadow' : c === 'h' ? 'crimson' : 'ash', hat: c === 'B' ? 'horns' : 'none', face: c === 'B' ? 'skull' : 'angry', back: c === 'B' ? 'cape' : 'none', blood: 'red' });
-  f.team = 1; fighters.push(f); f.reset(q[0], q[1] - 1); f.maxHp = f.hp = T.hp; giveWeapon(f, T.w, true); computePose(f); E('ring', f.x, f.y - 36, 50, '#ff5252', .3);
+  const f = new Fighter(slot, pick(T.names), 'bot', T.look);
+  f.team = 1; f.size = T.size || 0; f.m = { ...f.m, dmg: f.m.dmg * WORLD1[S.lv].ed }; freeColor(f, fighters.filter(o => !o.dead)); fighters.push(f); f.reset(q[0], q[1] - 1); f.maxHp = f.hp = T.hp; giveWeapon(f, T.w, true); computePose(f); E('ring', f.x, f.y - 36, 50, '#ff5252', .3);
   if (c === 'B') { f.boss = true; f.rage = false; S.bossT = 3; S.calls = 0; f.height = 90; } return f;
 }
-const KILL_HEAL = 8;
 function healPlayer(p, n) { const h = Math.min(n, p.maxHp - p.hp); if (h <= 0 || p.dead) return; p.hp += h; E('float', p.x, p.y - 92, '+' + Math.ceil(h), '#7fe89a'); }
 // Nachschub landet neben dem Spieler auf sicherem Boden, nie in Gruben oder auf Plattformen über Lava.
 function supplyDrop(k, p) {
@@ -3542,17 +3558,21 @@ function supplyDrop(k, p) {
   for (const q of level.plats) { if (q.invisible || q.move || q.nocrate || q.w < 60 || q.py < 100) continue; const x = clamp(x0, q.px + 20, q.px + q.w - 20), d = Math.abs(x - p.x) + Math.abs(q.py - p.y); if (d < bd && !level.hazards.some(h => h.type === 'spikes' && x > h.x && x < h.x + h.w && h.y < q.py + 40) ) { bd = d; b = { x, y: q.py - 90 }; } }
   if (!b) b = { x: p.x, y: p.y - 90 }; items.push(HEAL_DEF[k] ? { id: itemId++, x: b.x, y: b.y, vx: 0, vy: 0, heal: k, onG: false, angle: 0, spin: 0 } : { id: itemId++, x: b.x, y: b.y, vx: 0, vy: 0, weapon: k, tier: 0, ammo: magOf(k, 0), res: resOf(k, 0), onG: false, angle: 0, spin: 0 }); E('ring', b.x, b.y, 44, '#7fe89a', .3);
 }
-// Nach jeder Welle: Heilung, und eine Waffe falls man leer dasteht.
+// Nachschub nach einer Welle nur bei echtem Bedarf: fast tot oder ohne Waffe.
 function waveSupply(p) {
-  const L = WORLD1[G.st.lv], w = WEAPONS[p.weapon]; supplyDrop(p.hp < p.maxHp * .55 ? 'medkit' : 'bandage', p);
-  if (!L.fists && L.drop && (p.weapon === 'fists' || (w.cat !== 'melee' && p.ammo <= 0 && p.res <= 0))) supplyDrop(L.drop, p); E('feed', 'Nachschub!', '#7fe89a');
+  const L = WORLD1[G.st.lv], w = WEAPONS[p.weapon], h = levelHelp(); let any = false;
+  if (h >= 2 && p.hp < p.maxHp * .4) { supplyDrop('medkit', p); any = true; }
+  if (h >= 1 && !L.fists && L.drop && (p.weapon === 'fists' || (w.cat !== 'melee' && p.ammo <= 0 && p.res <= 0))) { supplyDrop(L.drop, p); any = true; }
+  if (any) E('feed', 'Nachschub!', '#7fe89a');
 }
 function stageFinish(won) { G.stageWon = won; G.phase = 'end'; G.timer = 2.4; G.winner = won ? fighters[0] : null; G.matchWinner = fighters[0]; G.ts = .4; G.slow = 1; }
+// Hilfe pro Level: 0 keine, 1 Waffe wenn man leer ist, 2 auch Heilung wenn es knapp wird. HELP_TEST überschreibt das im Balance-Test.
+let HELP_TEST = null;
+const levelHelp = () => HELP_TEST === null ? WORLD1[G.st.lv].help || 0 : HELP_TEST;
 function campaignStep(dt) {
   if (!G.cfg.stage) return; G.roundT = Math.min(G.roundT, 30); const S = G.st, p = fighters[0], s = stageSec(), foes = fighters.slice(1).filter(f => !f.dead);
   const boss = fighters.find(f => f.boss); if (boss && boss.dead) { stageFinish(true); return; }
   if (p.dead) { S.dead += dt; if (S.dead > 1.6) { S.dead = 0; S.lives--; if (S.lives <= 0) stageFinish(false); else respawnPlayer(); } return; }
-  const fallen = fighters.slice(1).filter(f => f.dead).length; if (fallen > S.fallen) { healPlayer(p, (fallen - S.fallen) * KILL_HEAL); S.fallen = fallen; }
   if (boss) bossStep(boss, p, dt);
   if (foes.length) { S.age += dt; if (S.age > 45 && !boss) for (const f of foes) kill(f, null, 0, -1, 'verschwindet'); return; }
   if (S.pending) { S.pending = false; waveSupply(p); }
@@ -3563,7 +3583,7 @@ function campaignStep(dt) {
 // Der Boss kündigt jeden Angriff an, damit man ausweichen kann.
 function bossStep(b, p, dt) {
   const S = G.st; if (!b.rage && b.hp <= b.maxHp / 2) { b.rage = true; b.m = { ...b.m, speed: b.m.speed * 1.25 }; b.setLabel('WUTANFALL!'); E('shake', 12); E('sfx', 'parry', b.x); }
-  if (S.calls < 2 && b.hp <= b.maxHp * (S.calls ? .33 : .66)) { S.calls++; spawnEnemy('g'); spawnEnemy('g'); supplyDrop('medkit', p); E('feed', 'Der Schlächter ruft Verstärkung!', '#ff7a70'); }
+  if (S.calls < 2 && b.hp <= b.maxHp * (S.calls ? .33 : .66)) { S.calls++; spawnEnemy('g'); spawnEnemy('g'); if (levelHelp() >= 2) supplyDrop('medkit', p); E('feed', 'Der Schlächter ruft Verstärkung!', '#ff7a70'); }
   if (b.leap) { if (b.onGround && S.air) { b.leap = false; S.air = false; b.holdAI = false; S.bossT = b.rage ? 2.2 : 3.4; E('shake', 16); E('sfx', 'boom', b.x); E('ring', b.x, b.y - 8, 300, '#ff5252', .4); E('dust', b.x, b.y, 24); if (Math.abs(p.x - b.x) < 300 && p.onGround) hitFighter(p, 'torso', 32, WEAPONS.hammer, Math.sign(p.x - b.x) || 1, -.6, 900, b); } else if (!b.onGround) { S.air = true; b.vx = S.lvx; } return; }
   if (S.tele > 0) { S.tele -= dt; if (S.tele > 0) return; const dx = p.x - b.x; if (S.atk === 'leap') { b.leap = true; S.air = false; S.lvx = b.vx = clamp(dx, -900, 900); b.vy = -1050; b.onGround = false; b.ground = null; } else { b.holdAI = false; S.bossT = b.rage ? 2 : 3; const a0 = Math.atan2(p.y - 40 - b.y + 60, dx); for (let i = -3; i <= 3; i++) { const a = a0 + i * .16; shots.push({ id: shotId++, k: 'shuriken', x: b.x, y: b.y - 60, vx: Math.cos(a) * 760, vy: Math.sin(a) * 760, dmg: 16, owner: b, w: 'shuriken', life: 4, fuse: 0, hit: new Set(), grav: GRAV * .15, ang: a, spin: 1 }); } E('sfx', 'throw', b.x); } return; }
   S.bossT -= dt; if (S.bossT <= 0) { S.atk = pick(['leap', 'fan']); S.tele = b.rage ? .55 : .8; b.holdAI = true; b.setLabel(S.atk === 'leap' ? 'SPRUNG!' : 'KLINGEN!'); E('sfx', 'beep', b.x); }

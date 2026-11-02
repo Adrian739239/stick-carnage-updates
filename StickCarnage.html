@@ -24,7 +24,7 @@ canvas{display:block;outline:none;touch-action:none;user-select:none;-webkit-use
 
 </script>
 <script>
-const GAME_VERSION = '3.3.0', GAME_BUILD = 1793615141;
+const GAME_VERSION = '3.4.0', GAME_BUILD = 1793615481;
 'use strict';
 /* =========================================================
    STICK CARNAGE 2
@@ -1240,7 +1240,7 @@ const EV = {
   blast: (x, y, R) => spawnBlast(x, y, R),
   dmg: (x, y, n) => { if (settings.dmgNum && n > 0) floats.push({ x: x + rand(-10, 10), y: y - 6, t: .15, text: String(n), col: n >= 40 ? '#ff8a65' : '#ffe08a', small: true }); },
   label: (i, t) => { const f = fighters[i]; if (f) { f.label = t; f.labelT = 1.5; } },
-  hurt: (i, dx, d) => { const f = fighters[i]; if (!f) return; f.flinchV += dx * f.facing * clamp(d * .28, 1, 9); f.flash = .055; if (f.body) { const k = clamp(d * .1, 1, 5); for (const n in f.body) { const q = f.body[n]; if (!q || q.ox === undefined) continue; q.ox -= dx * k; q.oy += k * .3; } } f.impactAt = G.time; f.impactDir = dx; f.impactPower = clamp(d/40,.2,1.3); },
+  hurt: (i, dx, d) => { const f = fighters[i]; if (!f) return; f.flinchV += dx * f.facing * clamp(d * .28, 1, 9); f.flash = .055; if (f.body) { const k = clamp(d * .1, 1, 5); for (const n in f.body.n) { const q = f.body.n[n]; q.ox -= dx * k; q.oy += k * .3; } } f.impactAt = G.time; f.impactDir = dx; f.impactPower = clamp(d/40,.2,1.3); },
   ragBoom: (x, y, R) => { for (const r of ragdolls) { r.push(x, y, R * 1.2, 0, 0); r.pts.forEach(p => { const d = dist(x, y, p.x, p.y); if (d < R * 1.2 && !p.pin) { const k = 1 - d / (R * 1.2); p.ox -= (p.x - x) / (d || 1) * k * 20; p.oy -= ((p.y - y) / (d || 1) * k * 20 + k * 12); r.sleep = 0; } }); } },
   stick: (i, key, ox, oy, a, kind, d) => { const f = fighters[i]; if (!f) return; f.stuck.push({ key, ox, oy, a, kind, d }); const w = kind === 'wound', same = f.stuck.filter(s => (s.kind === 'wound') === w); if (same.length > (w ? 10 : 8)) f.stuck.splice(f.stuck.indexOf(same[0]), 1); },
   unstick: (i, limb) => { const f = fighters[i]; if (f) f.stuck = limb === 'all' ? [] : f.stuck.filter(s => STICK_LIMB[s.key] !== limb); },
@@ -1600,8 +1600,7 @@ function computePose(f, dt) {
     else { const sw = walk ? Math.cos(f.phase) * (s === 'L' ? -1 : 1) * lerp(7, 10, G0.run) : 0; t = { x: sh.x + sw * (Math.sign(f.vx) || 1) - d * 3, y: sh.y + 21 - G0.run * (walk ? 5 : 0) }; }
     p['elbow' + s] = ik(sh.x, sh.y, t.x, t.y, 13, 13, d); const dd = Math.min(26, dist(sh.x, sh.y, t.x, t.y)), ang = Math.atan2(t.y - sh.y, t.x - sh.x); p['hand' + s] = { x: sh.x + Math.cos(ang) * dd, y: sh.y + Math.sin(ang) * dd };
   }
-  if (W) bodySim(f, p, fd, onG, d, off, !!(w.twoHand && wa !== null));
-  p.main = main;
+  p.main = main; if (W) bodySim(f, p, fd, onG, d, off, !!(w.twoHand && wa !== null));
   if (wa !== null && f.weapon !== 'fists' && f.armOK(main)) { const h = p['hand' + main]; p.wpn = { x: h.x, y: h.y, ang: wa, flip: d < 0 }; p.muzzle = { x: h.x + Math.cos(wa) * (w.len || 12) * 1.2, y: h.y + Math.sin(wa) * (w.len || 12) * 1.2 }; }
   else { p.wpn = null; p.muzzle = { x: sh.x + Math.cos(a) * 20, y: sh.y + Math.sin(a) * 20 }; }
   f.pose = p;
@@ -1619,32 +1618,39 @@ function limbSegments(f) {
 }
 function stumpPos(f, l) { const p = f.pose; return l.startsWith('arm') ? { x: p.shoulder.x, y: p.shoulder.y + 3 } : { x: p.hip.x, y: p.hip.y + 4 }; }
 
-// Physik-Körper: Hüfte, Hals, Kopf, freie Hand und Füße haben Masse und werden von "Muskeln" zur Pose gezogen.
-// Treffer stoßen die Punkte weg, im Taumeln (f.stun) werden die Muskeln schlaff. Knie und Ellbogen folgen über IK.
-const BODY_PULL = { hip: .3, neck: .11, head: .36, foot: .07, hand: .05, spine: .05 };
-function bodyNode(B, k, q) { return B[k] || (B[k] = { x: q.x, y: q.y, ox: q.x, oy: q.y }); }
-function bodyStep(n, q, pull, lim, floor, g) {
-  const vx = (n.x - n.ox) * .9, vy = (n.y - n.oy) * .9 + (g || .05) * (1 - pull); n.ox = n.x; n.oy = n.y; n.x += vx; n.y += vy;
-  n.x += (q.x - n.x) * pull; n.y += (q.y - n.y) * pull; const dx = n.x - q.x, dy = n.y - q.y, l = Math.hypot(dx, dy); if (l > lim) { n.x = q.x + dx / l * lim; n.y = q.y + dy / l * lim; }
-  if (n.y > floor) { n.y = floor; n.oy = floor; }
-}
-function setBone(c, a, l) { const dx = c.x - a.x, dy = c.y - a.y, m = Math.hypot(dx, dy) || 1; c.x = a.x + dx / m * l; c.y = a.y + dy / m * l; }
-function bodySim(f, p, fd, onG, d, off, holdOff) {
-  const B = f.body || (f.body = { str: 1, lim: 0 }), down = f.stun > KNOCKED, goal = down ? .03 : f.stun > 0 ? .3 : 1, steps = clamp(Math.round(fd * 120), 1, 4), floor = onG ? f.y - 1 : 1e9, grav = down ? .17 : .05;
-  B.str += (goal - B.str) * (1 - Math.exp(-(goal < B.str ? 30 : 5) * fd)); B.lim = down ? 80 : Math.max(0, B.lim - 170 * fd); const limp = B.str, X = B.lim;
-  const hipT = p.hip, neckT = p.neck, headT = p.head, spineL = dist(hipT.x, hipT.y, neckT.x, neckT.y), headL = dist(neckT.x, neckT.y, headT.x, headT.y), hip = bodyNode(B, 'hip', hipT), neck = bodyNode(B, 'neck', neckT), head = bodyNode(B, 'head', headT), spineT = { x: (hipT.x + neckT.x) / 2, y: (hipT.y + neckT.y) / 2 }, spn = bodyNode(B, 'spine', spineT);
-  for (const s of ['L', 'R']) { const q = p['foot' + s]; if (!q) continue; const n = bodyNode(B, 'foot' + s, q), plant = onG && !f.sliding; for (let i = 0; i < steps; i++) bodyStep(n, q, (plant ? .6 : BODY_PULL.foot) * limp, Math.max(15, X), floor, grav); q.x = n.x; q.y = n.y; }
-  const hands = []; for (const s of ['L', 'R']) { const h = p['hand' + s]; if (h && (down || (s === off && !holdOff))) hands.push({ h, t: { ...h }, n: bodyNode(B, 'hand' + s, h) }); else if (h) B['hand' + s] = null; }
-  for (let i = 0; i < steps; i++) {
-    bodyStep(hip, hipT, BODY_PULL.hip * limp, Math.max(9, X), floor - 5, grav); bodyStep(neck, neckT, BODY_PULL.neck * limp, Math.max(14, X), floor - 4, grav); bodyStep(spn, spineT, BODY_PULL.spine * limp, Math.max(9, X * .4), floor - 3, grav); bodyStep(head, headT, BODY_PULL.head * limp, Math.max(12, X), floor - 6, grav);
-    if (down) neck.x += (f.impactDir || d) * .55; // Kippt in Stoßrichtung um
-    setBone(neck, hip, spineL); setBone(head, neck, headL); for (const q of hands) bodyStep(q.n, q.t, BODY_PULL.hand * limp, Math.max(21, X), floor, grav);
+// Physik-Körper: Jeder Punkt hat Masse und Schwerkraft, ist über Knochen verbunden und stößt gegen die Map.
+// Muskeln ziehen ihn zur Pose, die Balance-Kraft an der Hüfte hält ihn aufrecht. Im Taumeln und am Boden werden sie schlaff.
+const BODY_KEYS = ['hip', 'spine', 'neck', 'head', 'kneeL', 'kneeR', 'footL', 'footR', 'elbowL', 'elbowR', 'handL', 'handR'];
+const BODY_BONES = [['hip', 'spine'], ['spine', 'neck'], ['neck', 'head'], ['hip', 'kneeL'], ['kneeL', 'footL'], ['hip', 'kneeR'], ['kneeR', 'footR'], ['neck', 'elbowL'], ['elbowL', 'handL'], ['neck', 'elbowR'], ['elbowR', 'handR']];
+const BODY_MUSCLE = { hip: .14, spine: .05, neck: .09, head: .13, knee: .09, foot: .05, elbow: .05, hand: .025 };
+const muscleOf = k => BODY_MUSCLE[k.replace(/[LR]$/, '')];
+function nodeHit(n, f) {
+  for (const s of solids) {
+    if (n.x < s.px - 1 || n.x > s.px + s.w + 1 || n.y < s.py - 1 || n.y > s.py + s.h + 1) continue;
+    if (s.oneway) { if (n.oy <= s.py + 1 && n.y >= s.py && !(f.dropT > 0)) { n.y = s.py; n.ox += (n.x - n.ox) * .4; n.oy = n.y; } continue; }
+    if (n.oy <= s.py + 1) { n.y = s.py; n.ox += (n.x - n.ox) * .4; n.oy = n.y; } else if (n.oy >= s.py + s.h - 1) { n.y = s.py + s.h; n.oy = n.y; } else { n.x = n.ox < s.px + s.w / 2 ? s.px : s.px + s.w; n.ox = n.x; }
   }
-  const sx = neck.x - neckT.x, sy = neck.y - neckT.y; p.hip = { x: hip.x, y: hip.y }; p.neck = { x: neck.x, y: neck.y }; p.head = { x: head.x, y: head.y }; p.spine = { x: spn.x, y: spn.y };
-  p.shoulder = { x: p.shoulder.x + sx, y: p.shoulder.y + sy }; const sh = p.shoulder, sim = new Set(hands.map(q => q.h));
-  for (const s of ['L', 'R']) { const h = p['hand' + s]; if (!h) continue; if (sim.has(h)) { const n = B['hand' + s]; h.x = n.x; h.y = n.y; } else { h.x += sx; h.y += sy; } setBoneMax(h, sh, 25.9); p['elbow' + s] = ik(sh.x, sh.y, h.x, h.y, 13, 13, d); }
-  for (const s of ['L', 'R']) { const q = p['foot' + s]; if (q) { setBoneMax(q, p.hip, 31.9); B['foot' + s].x = q.x; B['foot' + s].y = q.y; p['knee' + s] = legKnee(f, p, q.x, q.y, d); } }
-  stepHang(f, p);
+}
+function bodySim(f, p, fd, onG, d, off, holdOff) {
+  const B = f.body || (f.body = { n: {}, str: 1, t: G.time }), N = B.n, down = f.stun > KNOCKED, goal = down ? .012 : f.stun > 0 ? .3 : 1, g = GRAV / 14400, main = p.main || (off === 'L' ? 'R' : 'L');
+  const T = {}; for (const k of BODY_KEYS) { const q = k === 'spine' ? { x: (p.hip.x + p.neck.x) / 2, y: (p.hip.y + p.neck.y) / 2 } : p[k]; if (q) { T[k] = q; if (!N[k]) N[k] = { x: q.x, y: q.y, ox: q.x, oy: q.y }; } else delete N[k]; }
+  let steps = clamp(Math.round((G.time - B.t) * 120), 0, 3); if (G.time < B.t) steps = 1; if (steps) B.t = G.time; const pinned = !down && T['hand' + main], neck0 = T.neck, handT = T['hand' + main];
+  const bones = BODY_BONES.filter(b => T[b[0]] && T[b[1]]).map(b => [N[b[0]], N[b[1]], dist(T[b[0]].x, T[b[0]].y, T[b[1]].x, T[b[1]].y)]);
+  const keep = holdOff && !down && T['hand' + off];
+  for (let st = 0; st < steps; st++) {
+    B.str += (goal - B.str) * (goal < B.str ? .25 : .035); const m = B.str;
+    for (const k in N) {
+      const n = N[k], q = T[k], vx = (n.x - n.ox) * .97, vy = (n.y - n.oy) * .97 + g; n.ox = n.x; n.oy = n.y; n.x += vx; n.y += vy;
+      const plant = (k === 'footL' || k === 'footR') && onG && !f.sliding && q.y >= f.y - 1, s = (plant ? .5 : muscleOf(k)) * m; n.x += (q.x - n.x) * s; n.y += (q.y - n.y) * s;
+    }
+    if (pinned) { const h = N['hand' + main]; h.x = handT.x + N.neck.x - neck0.x; h.y = handT.y + N.neck.y - neck0.y; } if (keep) { const h = N['hand' + off]; h.x = T['hand' + off].x + N.neck.x - neck0.x; h.y = T['hand' + off].y + N.neck.y - neck0.y; }
+    for (let it = 0; it < 4; it++) for (const [a, b, l] of bones) { const dx = b.x - a.x, dy = b.y - a.y, c = Math.hypot(dx, dy) || .01, e = (c - l) / c * .5; a.x += dx * e; a.y += dy * e; b.x -= dx * e; b.y -= dy * e; }
+    if (down) N.neck.x += (f.impactDir || d) * .5; const lim = down ? 60 : 5 + 22 * (1 - m), h = N.hip, hx = h.x - T.hip.x, hy = h.y - T.hip.y, hl = Math.hypot(hx, hy); if (hl > lim) { h.x = T.hip.x + hx / hl * lim; h.y = T.hip.y + hy / hl * lim; }
+    for (const k in N) if (down || !k.startsWith('hand') && !k.startsWith('elbow')) nodeHit(N[k], f);
+    for (const [a, b, l] of bones) { const c = dist(a.x, a.y, b.x, b.y); if (c > l * 1.12) { b.x = a.x + (b.x - a.x) / c * l * 1.12; b.y = a.y + (b.y - a.y) / c * l * 1.12; b.ox = b.x; b.oy = b.y; } } // Knochen reißen nie
+  }
+  for (const k of BODY_KEYS) if (N[k]) { const n = N[k]; if (!isFinite(n.x + n.y)) { n.x = n.ox = T[k].x; n.y = n.oy = T[k].y; } p[k] = { x: n.x, y: n.y }; }
+  p.shoulder = { x: N.neck.x, y: N.neck.y + 4 }; stepHang(f, p);
 }
 function setBoneMax(c, a, l) { const m = dist(a.x, a.y, c.x, c.y); if (m > l) { c.x = a.x + (c.x - a.x) / m * l; c.y = a.y + (c.y - a.y) / m * l; } }
 // Heraushängende Därme: eine lose Kette am Bauch.
@@ -1969,7 +1975,7 @@ function shatterMolotov(x, y, by) {
   E('firePatch', x, gy, 170, 4.5); setTimeoutGame(1.5, () => mapHit(x, gy + 3, 74, 'fire', by)); for (const f of fighters) if (!f.dead && dist(f.x, f.y - 30, x, y) < 90) ignite(f, by);
 }
 function explode(x, y, R, dmg, owner) {
-  E('sfx', 'boom', x); E('shake', 20 * R / 150); E('flash', x, y, R * 3.8, '#ffb060', .5); E('flash', x, y, R * 1.8, '#ffffff', .14); E('blast', x, y, R); E('scorch', x, y, R * .46);
+  E('sfx', 'boom', x); E('shake', 20 * R / 150); E('flash', x, y, R * 3.8, '#ffb060', .5); E('flash', x, y, R * 1.8, '#ffffff', .14); E('blast', x, y, R);
   for (const f of fighters.slice()) {
     if (f.dead) continue; const cx = f.x, cy = f.y - 34, d = dist(x, y, cx, cy); if (d > R + 24) continue;
     const k = 1 - clamp((d - 20) / R, 0, 1), dx = (cx - x) / (d || 1), dy = (cy - y) / (d || 1);
@@ -3097,7 +3103,9 @@ function paintCut(c) {
   const pts = cutPoints(c), path = q => { q.beginPath(); pts.forEach((p, i) => i ? q.lineTo(p[0], p[1]) : q.moveTo(p[0], p[1])); q.closePath(); };
   for (const q of [g, sctx]) { q.save(); q.globalCompositeOperation = 'destination-out'; q.fillStyle = '#000'; path(q); q.fill(); q.restore(); }
   const x0 = c.t === 'rect' ? c.x : c.x - c.rx, x1 = c.t === 'rect' ? c.x + c.w : c.x + c.rx; clearCap(g, x0, c.y, x1, c.t === 'rect' ? c.y + c.h : c.y); clearCap(sctx, x0, c.y, x1, c.t === 'rect' ? c.y + c.h : c.y);
-  g.save(); g.globalCompositeOperation = 'source-atop'; g.strokeStyle = 'rgba(6,5,5,.72)'; g.lineWidth = 9; path(g); g.stroke(); g.restore(); g.globalCompositeOperation = 'source-over';
+  // Halterungen und Schatten unter dünnen Plattformen verschwinden mit, wenn darunter nichts anderes liegt.
+  if (c.t === 'rect' && c.h <= 44 && !level.plats.some(p => p.px < x1 && p.px + p.w > x0 && p.py >= c.y + c.h && p.py < c.y + c.h + 34)) g.clearRect(x0 - 1, c.y + c.h, x1 - x0 + 2, 34);
+  g.globalCompositeOperation = 'source-over';
 }
 function drawTempPlats() { for (const p of level.plats) if (p.temp) { const a = clamp(p.temp / 1.5, .25, 1); ctx.fillStyle = `rgba(150,225,255,${.78 * a})`; ctx.fillRect(p.px, p.py, p.w, p.h); ctx.fillStyle = `rgba(235,250,255,${.95 * a})`; ctx.fillRect(p.px, p.py, p.w, 3); } }
 

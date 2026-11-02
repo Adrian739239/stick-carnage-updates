@@ -24,7 +24,7 @@ canvas{display:block;outline:none;touch-action:none;user-select:none;-webkit-use
 
 </script>
 <script>
-const GAME_VERSION = '3.7.0', GAME_BUILD = 1793617075;
+const GAME_VERSION = '3.7.1', GAME_BUILD = 1793617217;
 'use strict';
 /* =========================================================
    STICK CARNAGE 2
@@ -2168,10 +2168,10 @@ function dropWeapon(f, vx, noPick) { if (f.weapon === 'fists') return; items.pus
 function dropRandom(x, y) { const k = pick(weaponPool()), tr = rollTier(); items.push({ id: itemId++, x, y, vx: rand(-80, 80), vy: -300, weapon: k, tier: tr, ammo: magOf(k, tr), res: resOf(k, tr), onG: false, angle: 0, spin: rand(-9, 9) }); }
 function spawnCrate() {
   if (G.cfg.noCrates) return;
-  if (items.length >= (G.cfg.rule === 6 ? 16 : 6)) return; const c = level.plats.filter(p => !p.invisible && !p.nocrate && !p.move && p.w >= 110); if (!c.length) return;
+  if (items.length >= (G.cfg.rule === 6 ? 16 : 4)) return; const c = level.plats.filter(p => !p.invisible && !p.nocrate && !p.move && p.w >= 110); if (!c.length) return;
   const p = pick(c), x = rand(p.px + 25, p.px + p.w - 25);
   if (G.cfg.rule !== 7 && !G.suddenDeath && G.roundT > 12 && Math.random() < .32 && items.filter(i => i.heal).length < 2) { const r = Math.random(); items.push({ id: itemId++, x, y: -40, vx: 0, vy: 190, heal: r < .58 ? 'bandage' : r < .9 ? 'medkit' : 'serum', onG: false, angle: 0, spin: 0 }); return; }
-  const k = pick(weaponPool()), boom = WEAPONS[k].proj === 'boomerang', tr = boom ? 0 : rollTier(); items.push({ id: itemId++, x, y: -40, vx: 0, vy: 200, weapon: k, tier: tr, ammo: boom ? 1 : magOf(k, tr), res: resOf(k, tr), onG: false, angle: 0, spin: rand(-5, 5) }); // Waffen fallen direkt
+  const k = pick(weaponPool()), boom = WEAPONS[k].proj === 'boomerang', tr = boom ? 0 : rollTier(); items.push({ id: itemId++, x, y: -40, vx: 0, vy: 190, slow: true, weapon: k, tier: tr, ammo: boom ? 1 : magOf(k, tr), res: resOf(k, tr), onG: false, angle: 0, spin: rand(-1.6, 1.6) }); // Waffen sinken langsam herab
 }
 function needsHeal(f, k) { const L = f.limbs; return f.hp < f.maxHp - 1 || f.burn > 0 || f.jo !== 0 || (k !== 'bandage' && LIMB_KEYS.some(l => L[l].s === 1)) || (k === 'serum' && LIMB_KEYS.some(l => L[l].s === 2)); }
 function applyHeal(f, k) {
@@ -2184,7 +2184,7 @@ function applyHeal(f, k) {
 }
 function stepItems(dt) {
   for (let i = items.length - 1; i >= 0; i--) {
-    const it = items[i]; if ((it.crate || it.heal) && !it.onG) it.vy = 190; else it.vy = Math.min(1300, it.vy + GRAV * (it.thrown ? .14 : 1) * dt);
+    const it = items[i]; if ((it.crate || it.heal || it.slow) && !it.onG) it.vy = 190; else it.vy = Math.min(1300, it.vy + GRAV * (it.thrown ? .14 : 1) * dt);
     const ox = it.x, oy = it.y; it.x += it.vx * dt; it.y += it.vy * dt; it.onG = false; const r = 9;
     for (const s of solids) {
       if (it.x + r <= s.px || it.x - r >= s.px + s.w) continue;
@@ -2503,7 +2503,7 @@ function stepGame(dt) {
   if (G.phase === 'countdown') { G.timer -= dt; const c = Math.ceil(G.timer); if (c !== G.lastCount && c > 0) { G.lastCount = c; if (!G.attract) { E('sfx', 'count'); } } if (G.timer <= 0) { G.phase = 'play'; E('sfx', 'go'); } }
   else if (G.phase === 'play') {
     campaignStep(dt); if (G.phase !== 'play') return;
-    G.crateT -= dt; G.roundT += dt; if (G.crateT <= 0) { spawnCrate(); G.crateT = G.cfg.rule === 6 || G.suddenDeath ? rand(.6, 1.2) : G.roundT < 12 ? rand(.7, 1.3) : rand(3.5, 6); }
+    G.crateT -= dt; G.roundT += dt; if (G.crateT <= 0) { spawnCrate(); G.crateT = G.cfg.rule === 6 ? rand(.6, 1.2) : G.suddenDeath ? rand(2.5, 4) : G.roundT < 12 ? rand(2.5, 4) : rand(7, 11); }
     if (G.roundT > RUSH_AT && !G.suddenDeath) { G.suddenDeath = true; E('feed', 'BLUTRAUSCH: Mehr Schaden, Waffen regnen!', '#ff5252'); E('sfx', 'go'); }
   } else if (G.phase === 'end') { G.timer -= dt; if (G.timer <= 0) { if (G.matchWinner) { endMatch(); return; } startRound(); return; } }
   for (const f of fighters) if (!f.dead) computePose(f);
